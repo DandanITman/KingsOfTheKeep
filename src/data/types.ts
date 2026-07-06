@@ -158,6 +158,19 @@ export interface UnitDef {
   /** Passive income for trade units (gold per completed loop etc). */
   tradeGoldPerTrip?: number;
   healPerSec?: number;
+  /** Passive trickle income (tax collectors, herd keepers). */
+  passiveIncome?: { resource: Resource; perMin: number };
+  /** Worker specialists: build/gather/carry multipliers. */
+  workerBonuses?: {
+    buildMult?: number;
+    carryMult?: number;
+    gatherMult?: Partial<Record<GatherResource, number>>;
+    repairMult?: number;
+  };
+  /** Damage-over-time applied on hit (poison darts, fire). */
+  dotOnHit?: { dps: number; secs: number };
+  /** Splash radius for area attacks (siege). */
+  splash?: number;
   hero?: { activeCardId: string; respawnSecs: number };
   mesh: string;
 }
@@ -180,7 +193,11 @@ export interface BuildingDef {
   cost: Cost;
   buildSecs: number;
   requirements?: { tier?: Tier };
-  trains?: string[];
+  /**
+   * Training key: units whose `trainedAt` matches this key (and the owner's
+   * faction) can be trained here. E.g. 'barracks', 'stable', 'fortress'.
+   */
+  trainKey?: string;
   researches?: string[];
   dropoffFor?: GatherResource[];
   /** Economy buildings: max distance to matching resource nodes for efficiency. */

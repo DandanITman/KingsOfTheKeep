@@ -1,0 +1,137 @@
+/* ===== In-match HUD ===== */
+
+.match-root {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.hud > * {
+  pointer-events: auto;
+}
+
+/* Top bar */
+.hud-top {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  background: var(--panel);
+  border: 2px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 10px 10px;
+  padding: 6px 22px;
+  font-size: 15px;
+}
+
+.res {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 76px;
+  font-variant-numeric: tabular-nums;
+}
+
+.res .icon {
+  font-size: 16px;
+}
+
+.res.low {
+  color: #e88;
+}
+
+.hud-timer {
+  color: var(--gold);
+  font-variant-numeric: tabular-nums;
+  margin-left: 8px;
+}
+
+.hud-top .btn.small {
+  padding: 3px 12px;
+  font-size: 13px;
+}
+
+/* Minimap */
+.minimap {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  background: #111;
+  cursor: crosshair;
+}
+
+/* Bottom-left card bar area (filled in later milestones) */
+.hud-bottom {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+/* Alerts */
+.alert-feed {
+  position: absolute;
+  right: 12px;
+  top: 64px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 260px;
+}
+
+.alert-item {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--gold);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+  animation: alertIn 0.25s ease;
+  cursor: pointer;
+}
+
+.alert-item.danger {
+  border-left-color: var(--red);
+}
+
+@keyframes alertIn {
+  from { transform: translateX(30px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+/* Match end overlay */
+.match-end {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 50;
+  animation: fadeIn 0.6s ease;
+}
+
+.match-end h1 {
+  font-family: var(--font-display);
+  font-size: 64px;
+  letter-spacing: 6px;
+  margin-bottom: 10px;
+}
+
+.match-end.victory h1 { color: var(--gold); }
+.match-end.defeat h1 { color: var(--red); }

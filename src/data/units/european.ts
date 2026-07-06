@@ -1,0 +1,241 @@
+/** European unit roster (GDD §24). Balanced, defensive, armored, reliable. */
+
+import type { UnitDef } from '../types';
+import { STATS, unit } from './_stats';
+
+export const EUROPEAN_UNITS: UnitDef[] = [
+  // --- Civilians & economy (GDD §24.2) ---
+  unit('eu_serf_worker', 'Serf Worker', 'european', STATS.worker(), {
+    trainedAt: 'fortress',
+    mesh: 'worker',
+  }),
+  unit('eu_guild_laborer', 'Guild Laborer', 'european', STATS.worker(), {
+    trainedAt: 'fortress',
+    mesh: 'worker',
+    hp: 60,
+    cost: { food: 70, gold: 20 },
+    trainSecs: 16,
+    workerBonuses: { buildMult: 1.35, gatherMult: { gold: 1.15 } },
+  }),
+  unit('eu_ox_cart', 'Ox Cart', 'european', STATS.worker(), {
+    trainedAt: 'fortress',
+    mesh: 'cart',
+    hp: 120,
+    speed: 2.8,
+    damage: 0,
+    cost: { food: 60, wood: 60 },
+    trainSecs: 18,
+    commandCost: 1,
+    workerBonuses: { carryMult: 3 },
+  }),
+  unit('eu_mason_crew', 'Mason Crew', 'european', STATS.worker(), {
+    trainedAt: 'fortress',
+    mesh: 'worker',
+    hp: 70,
+    cost: { food: 60, stone: 20 },
+    trainSecs: 16,
+    workerBonuses: { repairMult: 2.2, buildMult: 1.2 },
+  }),
+  unit('eu_tax_collector', 'Royal Tax Collector', 'european', STATS.support(), {
+    trainedAt: 'market',
+    mesh: 'support',
+    hp: 70,
+    speed: 3.0,
+    cost: { food: 50, gold: 80 },
+    trainSecs: 20,
+    passiveIncome: { resource: 'gold', perMin: 12 },
+  }),
+
+  // --- Infantry (GDD §24.3) ---
+  unit('eu_levy_spearman', 'Levy Spearman', 'european', STATS.spearInfantry(), {
+    trainedAt: 'barracks',
+    mesh: 'spearman',
+  }),
+  unit('eu_militia_swordsman', 'Militia Swordsman', 'european', STATS.lightInfantry(), {
+    trainedAt: 'barracks',
+    mesh: 'swordsman',
+  }),
+  unit('eu_shieldman', 'Shieldman', 'european', STATS.heavyInfantry(), {
+    trainedAt: 'barracks',
+    mesh: 'shieldman',
+    tags: ['heavy', 'shielded'],
+    hp: 140,
+    damage: 11,
+    pierceArmor: 6,
+    cost: { food: 70, gold: 30 },
+  }),
+  unit('eu_longsword_guard', 'Longsword Guard', 'european', STATS.heavyInfantry(), {
+    trainedAt: 'barracks',
+    mesh: 'swordsman',
+    hp: 175,
+    damage: 18,
+    cost: { food: 90, gold: 55 },
+  }),
+  unit('eu_halberdier', 'Halberdier', 'european', STATS.spearInfantry(), {
+    trainedAt: 'barracks',
+    mesh: 'spearman',
+    tags: ['spear', 'heavy'],
+    hp: 130,
+    armor: 3,
+    pierceArmor: 2,
+    damage: 16,
+    commandCost: 2,
+    cost: { food: 75, gold: 45 },
+    trainSecs: 18,
+  }),
+  unit('eu_royal_footman', 'Royal Footman', 'european', STATS.eliteInfantry(), {
+    trainedAt: 'barracks',
+    mesh: 'swordsman',
+    hp: 260,
+    damage: 28,
+    cost: { food: 120, gold: 120 },
+  }),
+  unit('eu_crusader_champion', 'Crusader Champion', 'european', STATS.eliteInfantry(), {
+    trainedAt: 'barracks',
+    mesh: 'champion',
+    moraleAura: { radius: 8, bonus: 6 },
+  }),
+  unit('eu_banner_guard', 'Banner Guard', 'european', STATS.support(), {
+    trainedAt: 'barracks',
+    mesh: 'banner',
+    hp: 110,
+    armor: 2,
+    moraleAura: { radius: 10, bonus: 10 },
+    cost: { food: 70, gold: 50 },
+  }),
+
+  // --- Ranged (GDD §24.4) ---
+  unit('eu_shortbow_archer', 'Shortbow Archer', 'european', STATS.archer(), {
+    trainedAt: 'archeryRange',
+    mesh: 'archer',
+  }),
+  unit('eu_crossbowman', 'Crossbowman', 'european', STATS.archer(), {
+    trainedAt: 'archeryRange',
+    mesh: 'crossbow',
+    damage: 14,
+    attackPeriodSecs: 2.4,
+    range: 10,
+    cost: { food: 45, wood: 40, gold: 25 },
+    trainSecs: 16,
+  }),
+  unit('eu_longbowman', 'Longbowman', 'european', STATS.archer(), {
+    trainedAt: 'archeryRange',
+    mesh: 'archer',
+    hp: 50,
+    damage: 12,
+    range: 14,
+    los: 15,
+    cost: { food: 50, wood: 60 },
+    trainSecs: 17,
+  }),
+  unit('eu_pavise_crossbowman', 'Pavise Crossbowman', 'european', STATS.archer(), {
+    trainedAt: 'archeryRange',
+    mesh: 'crossbow',
+    tags: ['shielded'],
+    hp: 85,
+    pierceArmor: 4,
+    damage: 13,
+    attackPeriodSecs: 2.4,
+    range: 10,
+    speed: 2.8,
+    commandCost: 2,
+    cost: { food: 55, wood: 50, gold: 35 },
+    trainSecs: 19,
+  }),
+  unit('eu_arbalestier', 'Arbalestier', 'european', STATS.eliteRanged(), {
+    trainedAt: 'archeryRange',
+    mesh: 'crossbow',
+    damage: 24,
+    attackPeriodSecs: 2.6,
+    range: 12,
+  }),
+  unit('eu_castle_marksman', 'Castle Marksman', 'european', STATS.eliteRanged(), {
+    trainedAt: 'archeryRange',
+    mesh: 'crossbow',
+    tags: ['elite', 'defensive'],
+    damage: 18,
+    range: 13,
+  }),
+
+  // --- Cavalry (GDD §24.5) ---
+  unit('eu_scout_rider', 'Scout Rider', 'european', STATS.lightCavalry(), {
+    trainedAt: 'stable',
+    mesh: 'lightCavalry',
+  }),
+  unit('eu_mounted_sergeant', 'Mounted Sergeant', 'european', STATS.cavalry(), {
+    trainedAt: 'stable',
+    mesh: 'cavalry',
+  }),
+  unit('eu_knight', 'Knight', 'european', STATS.heavyCavalry(), {
+    trainedAt: 'stable',
+    mesh: 'knight',
+    hp: 220,
+    damage: 32,
+    cost: { food: 120, gold: 150 },
+    commandCost: 3,
+  }),
+  unit('eu_royal_lancer', 'Royal Lancer', 'european', STATS.heavyCavalry(), {
+    trainedAt: 'stable',
+    mesh: 'knight',
+    tags: ['heavy', 'antiCavalry'],
+    damage: 26,
+    cost: { food: 110, gold: 130 },
+  }),
+  unit('eu_paladin', 'Paladin', 'european', STATS.eliteCavalry(), {
+    trainedAt: 'stable',
+    mesh: 'paladin',
+    hp: 380,
+    damage: 46,
+    cost: { food: 180, gold: 280 },
+    commandCost: 5,
+  }),
+  unit('eu_banner_knight', 'Banner Knight', 'european', STATS.cavalry(), {
+    trainedAt: 'stable',
+    mesh: 'banner',
+    hp: 170,
+    moraleAura: { radius: 10, bonus: 8 },
+    cost: { food: 100, gold: 90 },
+    commandCost: 2,
+  }),
+
+  // --- Siege (GDD §24.6) ---
+  unit('eu_battering_ram', 'Battering Ram', 'european', STATS.ram(), {
+    trainedAt: 'siegeWorkshop',
+    mesh: 'ram',
+  }),
+  unit('eu_catapult', 'Catapult', 'european', STATS.siege(), {
+    trainedAt: 'siegeWorkshop',
+    mesh: 'catapult',
+    splash: 2.2,
+  }),
+  unit('eu_trebuchet', 'Trebuchet', 'european', STATS.heavySiege(), {
+    trainedAt: 'siegeWorkshop',
+    mesh: 'trebuchet',
+    splash: 2.6,
+  }),
+  unit('eu_siege_tower', 'Siege Tower', 'european', STATS.ram(), {
+    trainedAt: 'siegeWorkshop',
+    mesh: 'siegeTower',
+    hp: 420,
+    damage: 4,
+    bonusVsBuildings: 40,
+    speed: 1.8,
+    moraleAura: { radius: 7, bonus: 5 },
+    commandCost: 4,
+    cost: { wood: 200, gold: 60 },
+  }),
+  unit('eu_heavy_ballista', 'Heavy Ballista', 'european', STATS.defensiveSiege(), {
+    trainedAt: 'siegeWorkshop',
+    mesh: 'ballista',
+  }),
+  unit('eu_bombard_cart', 'Bombard Cart', 'european', STATS.heavySiege(), {
+    trainedAt: 'siegeWorkshop',
+    mesh: 'bombard',
+    hp: 260,
+    bonusVsBuildings: 210,
+    speed: 0.9,
+    splash: 3,
+    commandCost: 6,
+    cost: { wood: 220, gold: 260, stone: 120 },
+  }),
+];

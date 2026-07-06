@@ -1,4 +1,7 @@
 import '@/ui/styles/main.css';
+import '@/ui/styles/hud.css';
+import { createMatchScreen } from '@/app/screens/MatchScreen';
+import { validateCardDb } from '@/data/cards';
 import { ScreenManager } from '@/app/ScreenManager';
 import { createSplashScreen } from '@/app/screens/SplashScreen';
 import { createMainMenuScreen } from '@/app/screens/MainMenuScreen';
@@ -24,9 +27,10 @@ screens.register('deckEditor', () =>
 screens.register('shop', () =>
   createStubScreen(screens, 'Shop', 'The merchants are still stocking their stalls.'),
 );
-screens.register('match', () =>
-  createStubScreen(screens, 'Match', 'The battlefield is under construction.'),
-);
+screens.register('match', () => createMatchScreen(screens));
+
+const dbErrors = validateCardDb();
+if (dbErrors.length > 0) console.error('Card DB validation errors:', dbErrors);
 
 // Apply persisted UI scale
 document.documentElement.style.fontSize = `${16 * saveStore.data.options.display.uiScale}px`;

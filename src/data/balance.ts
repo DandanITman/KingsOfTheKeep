@@ -1,0 +1,107 @@
+/**
+ * Global gameplay tunables. Every cross-cutting number the sim uses lives
+ * here so balance passes touch data, not code.
+ */
+
+import type { Resource, UnitRole } from './types';
+
+export const TICK_RATE = 10; // sim ticks per second
+export const TICK_SECS = 1 / TICK_RATE;
+
+// --- Match start (GDD §13.2) ---
+export const STARTING_RESOURCES: Record<'standard' | 'rich', Partial<Record<Resource, number>>> = {
+  standard: { food: 300, wood: 300, stone: 150, gold: 100, influence: 0 },
+  rich: { food: 600, wood: 600, stone: 300, gold: 200, influence: 0 },
+};
+export const STARTING_WORKERS = 5;
+export const STARTING_COMMAND_CAP = 30;
+export const MAX_COMMAND_CAP = 200;
+
+// --- Economy ---
+export const GATHER_TRIP_AMOUNT = 10; // carried per trip
+export const GATHER_SECS: Record<string, number> = {
+  food: 6,
+  wood: 7,
+  stone: 8,
+  gold: 8,
+};
+/** Economy building efficiency by distance to node (fraction of gatherRadius). */
+export const CAMP_EFFICIENCY_NEAR = 1.0; // within 50% of radius
+export const CAMP_EFFICIENCY_MID = 0.75; // within 100%
+export const CAMP_EFFICIENCY_FAR = 0.5; // beyond (still valid, warned yellow)
+export const WORKER_REASSIGN_SECS = 2;
+export const FARM_FOOD_PER_SEC = 0.45; // per staffed farm worker slot
+export const MARKET_TRADE_RATE = 0.65; // sell 100 → get 65 of target
+export const MARKET_PASSIVE_GOLD_PER_MIN = 6;
+
+// --- Combat ---
+/** damage = max(1, atk * counterMult * moraleMult * modMult - armor). */
+export const COUNTER_TABLE: Partial<Record<UnitRole, Partial<Record<UnitRole, number>>>> = {
+  infantry: { ranged: 1.3, siege: 1.5 },
+  ranged: { infantry: 1.25 },
+  cavalry: { ranged: 1.75, siege: 1.75, worker: 1.5, support: 1.4 },
+  siege: {},
+  support: {},
+};
+/** Extra tag-based counters (spear vs cavalry etc), applied multiplicatively. */
+export const TAG_COUNTERS: { attackerTag: string; defenderRole?: UnitRole; defenderTag?: string; mult: number }[] = [
+  { attackerTag: 'spear', defenderRole: 'cavalry', mult: 2.0 },
+  { attackerTag: 'antiCavalry', defenderRole: 'cavalry', mult: 1.8 },
+  { attackerTag: 'skirmisher', defenderRole: 'ranged', mult: 1.5 },
+  { attackerTag: 'shielded', defenderRole: 'ranged', mult: 0.7 }, // shields take less, expressed on attack against them elsewhere
+];
+export const TARGET_ACQUIRE_PERIOD_TICKS = 5;
+export const PROJECTILE_SPEED = 22; // world units/sec
+export const SIEGE_PROJECTILE_SPEED = 14;
+export const RETALIATE_LEASH = 10; // how far idle/defend units chase attackers
+
+// --- Morale (GDD §21) ---
+export const MORALE_BASE = 70;
+export const MORALE_MIN_MULT = 0.75;
+export const MORALE_ROUT_THRESHOLD = 20;
+export const MORALE_RECOVER_THRESHOLD = 40;
+export const MORALE_FORTRESS_RADIUS = 24;
+export const MORALE_FORTRESS_BONUS = 10;
+export const MORALE_ALLY_DEATH_PENALTY = 4;
+export const MORALE_DEATH_MEMORY_SECS = 8;
+export const MORALE_REGEN_PER_SEC = 1.2;
+export const MORALE_UPDATE_PERIOD_TICKS = 10;
+
+// --- Buildings ---
+export const CONSTRUCTION_BASE_RATE = 1; // hp fraction progress = builders^0.5 * dt / buildSecs
+export const REPAIR_HP_PER_SEC = 6;
+export const REPAIR_COST_FRACTION = 0.25; // of build cost per full repair
+export const BUILDING_REFUND_FRACTION = 0.5; // refunded if cancelled/destroyed during construction
+
+// --- Macro ---
+export const MACRO_RECONCILE_SECS = 2;
+export const MARCH_REGROUP_FRACTION = 0.7;
+export const MARCH_FLAG_RADIUS = 8;
+export const ASSAULT_FLAG_RADIUS = 14;
+export const DEFEND_LEASH_RADIUS = 18;
+export const HARASS_SPEED_THRESHOLD = 4.5;
+export const EMERGENCY_FULL_ASSAULT_SECS = 60;
+
+// --- Vision ---
+export const FOG_CELL = 2; // world units per fog cell
+export const FOG_UPDATE_PERIOD_TICKS = 3;
+
+// --- Victory modes ---
+export const SHRINE_HOLD_SECS = 240; // cumulative to win shrine mode
+export const SHRINE_CAPTURE_RADIUS = 10;
+export const SURVIVAL_WAVES = 8;
+export const SURVIVAL_WAVE_INTERVAL_SECS = 90;
+export const TIMED_SCORE_SECS = 20 * 60;
+
+// --- Influence ---
+export const INFLUENCE_TIER3_PER_MIN = 4;
+export const INFLUENCE_TIER4_PER_MIN = 8;
+export const INFLUENCE_SHRINE_PER_MIN = 6;
+
+// --- Progression ---
+export const REWARD_WIN: Record<'easy' | 'medium' | 'hard', number> = { easy: 100, medium: 175, hard: 300 };
+export const REWARD_LOSS = 40;
+export const PACK_PRICE = 100;
+export const PACK_SIZE = 5;
+export const DUST_PER_DUPE: Record<string, number> = { common: 5, uncommon: 10, rare: 25, epic: 60, legendary: 150 };
+export const CRAFT_COST: Record<string, number> = { common: 20, uncommon: 40, rare: 100, epic: 250, legendary: 600 };

@@ -1,0 +1,188 @@
+import { EventBus } from '@/core/EventBus';
+import { el, button } from '@/ui/components/dom';
+import { saveStore } from '@/core/save/SaveStore';
+import { TICK_SECS } from '@/data/balance';
+import type { MatchSetup } from '@/data/types';
+import { MatchSim } from '@/sim/MatchSim';
+import { Renderer } from '@/render/Renderer';
+import { CameraRig } from '@/render/CameraRig';
+import { TerrainView } from '@/render/TerrainView';
+import { UnitView } from '@/render/UnitView';
+import { BuildingView } from '@/render/BuildingView';
+import { TopBar } from '@/ui/hud/TopBar';
+import { MinimapView } from '@/ui/hud/MinimapView';
+import type { Screen, ScreenManager } from '../ScreenManager';
+
+/**
+ * The match screen: owns the sim, render layer, HUD, and the fixed-timestep
+ * loop. Constructed fresh per match (ScreenManager.dispose before show).
+ */
+export function createMatchScreen(screens: ScreenManager): Screen {
+  const root = el('div', { className: 'match-root' });
+  let runner: MatchRunner | null = null;
+
+  return {
+    root,
+    onShow(params) {
+      runner = new MatchRunner(root, params as MatchSetup, screens);
+    },
+    onHide() {
+      runner?.dispose();
+      runner = null;
+      root.innerHTML = '';
+    },
+  };
+}
+
+export class MatchRunner {
+  readonly sim: MatchSim;
+  readonly bus = new EventBus();
+  private renderer: Renderer;
+  private rig: CameraRig;
+  private terrain: TerrainView;
+  private unitView: UnitView;
+  private buildingView: BuildingView;
+  private topBar: TopBar;
+  private minimap: MinimapView;
+  private screens: ScreenManager;
+  private root: HTMLElement;
+
+  private rafId = 0;
+  private lastTime = 0;
+  private accumulator = 0;
+  private paused = false;
+  private ended = false;
+  speedMult: number;
+
+  constructor(root: HTMLElement, setup: MatchSetup, screens: ScreenManager) {
+    this.root = root;
+    this.screens = screens;
+    this.speedMult = setup.speed;
+    this.sim = new MatchSim(setup, this.bus);
+    const state = this.sim.state;
+    const display = saveStore.data.options.display;
+
+    // Render layer.
+    this.renderer = new Renderer(root, state.map.terrain.biome, display);
+    this.rig = new CameraRig(root, state.map.spawns[0], { w: state.map.worldSize[0], h: state.map.worldSize[1] }, display);
+    this.terrain = new TerrainView(state);
+    this.unitView = new UnitView(state);
+    this.buildingView = new BuildingView(state);
+    this.renderer.scene.add(this.terrain.root, this.unitView.root, this.buildingView.root);
+
+    // HUD.
+    const hud = el('div', { className: 'hud' });
+    this.topBar = new TopBar(state, () => this.togglePause());
+    this.minimap = new MinimapView(state, (world) => this.rig.jumpTo(world));
+    hud.append(this.topBar.root, this.minimap.canvas);
+    root.append(hud);
+
+    // Intro banner.
+    const intro = el('div', { text: 'Defend your Keep. Destroy theirs.' });
+    intro.style.cssText = `position:absolute;top:20%;left:50%;transform:translateX(-50%);font-family:Georgia,serif;
+      font-size:30px;color:var(--gold);text-shadow:0 2px 10px #000;opacity:1;transition:opacity 1.2s;pointer-events:none;z-index:20;`;
+    root.append(intro);
+    window.setTimeout(() => (intro.style.opacity = '0'), 2600);
+    window.setTimeout(() => intro.remove(), 4000);
+
+    // Match end.
+    this.bus.on('matchEnded', ({ winner }) => this.onMatchEnd(winner === 0));
+
+    // Esc opens pause menu.
+    this.escHandler = (e: KeyboardEvent) => {
+      if (e.code === 'Escape') this.togglePause();
+    };
+    window.addEventListener('keydown', this.escHandler);
+
+    this.lastTime = performance.now();
+    this.loop(this.lastTime);
+
+    // Debug handle for console inspection and headless testing.
+    (window as unknown as Record<string, unknown>).__kotk = this;
+  }
+
+  private escHandler: (e: KeyboardEvent) => void;
+  private pauseOverlay: HTMLElement | null = null;
+
+  private loop = (now: number): void => {
+    this.rafId = requestAnimationFrame(this.loop);
+    const dtMs = Math.min(100, now - this.lastTime);
+    this.lastTime = now;
+    const dt = dtMs / 1000;
+
+    if (!this.paused && !this.ended) {
+      this.accumulator += dt * this.speedMult;
+      let ticks = 0;
+      while (this.accumulator >= TICK_SECS && ticks < 8) {
+        this.sim.tick();
+        this.accumulator -= TICK_SECS;
+        ticks++;
+      }
+      if (ticks === 8) this.accumulator = 0; // spiral-of-death guard
+    }
+
+    const alpha = Math.min(1, this.accumulator / TICK_SECS);
+    this.rig.update(dt, this.renderer.camera);
+    this.renderer.followShadow(this.rig.target);
+    this.unitView.update(alpha, now);
+    this.buildingView.update();
+    this.terrain.update();
+    this.topBar.update();
+    this.minimap.update(this.rig.target, this.rig.zoom);
+    this.renderer.render();
+  };
+
+  togglePause(): void {
+    if (this.ended) return;
+    this.paused = !this.paused;
+    if (this.paused) {
+      const backdrop = el('div', { className: 'modal-backdrop' });
+      const modal = el('div', { className: 'modal' }, [el('h2', { text: 'Paused' })]);
+      const buttons = el('div', { className: 'modal-buttons' });
+      buttons.style.flexDirection = 'column';
+      buttons.append(
+        button('Resume', () => this.togglePause(), 'btn small primary'),
+        button('Concede', () => {
+          this.sim.enqueue({ kind: 'concede', player: 0 });
+          this.paused = false;
+          backdrop.remove();
+          this.pauseOverlay = null;
+        }, 'btn small danger'),
+        button('Quit to Menu', () => {
+          backdrop.remove();
+          this.screens.show('mainMenu');
+        }, 'btn small'),
+      );
+      modal.append(buttons);
+      backdrop.append(modal);
+      this.root.append(backdrop);
+      this.pauseOverlay = backdrop;
+    } else {
+      this.pauseOverlay?.remove();
+      this.pauseOverlay = null;
+    }
+  }
+
+  private onMatchEnd(playerWon: boolean): void {
+    if (this.ended) return;
+    this.ended = true;
+    const overlay = el('div', { className: `match-end ${playerWon ? 'victory' : 'defeat'}` });
+    overlay.append(
+      el('h1', { text: playerWon ? 'VICTORY' : 'DEFEAT' }),
+      el('p', {
+        text: playerWon
+          ? 'The enemy fortress lies in ruins. The realm is yours.'
+          : 'Your keep has fallen. The banners are lowered.',
+      }),
+      button('Return to Menu', () => this.screens.show('mainMenu'), 'btn primary'),
+    );
+    this.root.append(overlay);
+  }
+
+  dispose(): void {
+    cancelAnimationFrame(this.rafId);
+    window.removeEventListener('keydown', this.escHandler);
+    this.rig.dispose();
+    this.renderer.dispose();
+  }
+}
