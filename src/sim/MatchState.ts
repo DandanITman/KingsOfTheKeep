@@ -80,13 +80,14 @@ export function defaultWorkerRatios(): Record<GatherResource, number> {
 // ---------------------------------------------------------------------------
 
 export interface ActiveAreaEffect {
-  kind: 'dot' | 'repair' | 'visionSuppress' | 'reveal';
+  kind: 'dot' | 'repair' | 'visionSuppress' | 'reveal' | 'income';
   player: PlayerId;
   pos: Vec2;
   radius: number;
-  /** dps for dot, hp/sec for repair. */
+  /** dps for dot, hp/sec for repair, amount/sec for income. */
   rate: number;
   expiresTick: number;
+  resource?: string;
 }
 
 // ---------------------------------------------------------------------------

@@ -12,6 +12,9 @@ import { BuildingView } from '@/render/BuildingView';
 import { TopBar } from '@/ui/hud/TopBar';
 import { MinimapView } from '@/ui/hud/MinimapView';
 import { EconomyPanel } from '@/ui/hud/EconomyPanel';
+import { CardBar } from '@/ui/hud/CardBar';
+import { GhostPlacementView } from '@/render/GhostPlacementView';
+import { MatchInput } from './MatchInput';
 import type { Screen, ScreenManager } from '../ScreenManager';
 
 /**
@@ -46,6 +49,9 @@ export class MatchRunner {
   private topBar: TopBar;
   private minimap: MinimapView;
   private economyPanel: EconomyPanel;
+  private cardBar: CardBar;
+  private ghost: GhostPlacementView;
+  private input: MatchInput;
   private screens: ScreenManager;
   private root: HTMLElement;
 
@@ -70,7 +76,15 @@ export class MatchRunner {
     this.terrain = new TerrainView(state);
     this.unitView = new UnitView(state);
     this.buildingView = new BuildingView(state);
-    this.renderer.scene.add(this.terrain.root, this.unitView.root, this.buildingView.root);
+    this.ghost = new GhostPlacementView();
+    this.renderer.scene.add(this.terrain.root, this.unitView.root, this.buildingView.root, this.ghost.root);
+
+    // Input: placement + targeting modes.
+    this.input = new MatchInput(root, this.renderer.camera, this.sim, this.ghost, () => {
+      this.cardBar.setSelected(this.input.mode.kind === 'placing' || this.input.mode.kind === 'targeting'
+        ? (this.input.mode as { card: { id: string } }).card.id
+        : null);
+    });
 
     // HUD.
     const hud = el('div', { className: 'hud' });
@@ -79,9 +93,26 @@ export class MatchRunner {
     this.economyPanel = new EconomyPanel(state, (ratios) =>
       this.sim.enqueue({ kind: 'setWorkerRatios', player: 0, ratios }),
     );
+    this.cardBar = new CardBar(state, (card) => {
+      if (this.input.mode.kind !== 'normal' && this.cardBar.selectedCardId === card.id) {
+        this.input.setMode({ kind: 'normal' });
+        return;
+      }
+      if (card.buildingId) {
+        this.input.startPlacing(card);
+      } else if (card.unitId) {
+        this.sim.enqueue({ kind: 'playCard', player: 0, cardId: card.id });
+      } else if (card.ability) {
+        if (card.ability.target === 'global') {
+          this.sim.enqueue({ kind: 'playCard', player: 0, cardId: card.id });
+        } else {
+          this.input.startTargeting(card);
+        }
+      }
+    });
     const bottomLeft = el('div', { className: 'hud-bottom' });
     bottomLeft.append(this.economyPanel.root);
-    hud.append(this.topBar.root, this.minimap.canvas, bottomLeft);
+    hud.append(this.topBar.root, this.minimap.canvas, bottomLeft, this.cardBar.root);
     root.append(hud);
     this.sim.options.autoAssignCivilians = saveStore.data.options.gameplay.autoAssignCivilians;
 
@@ -137,6 +168,7 @@ export class MatchRunner {
     this.terrain.update();
     this.topBar.update();
     this.economyPanel.update();
+    this.cardBar.update();
     this.minimap.update(this.rig.target, this.rig.zoom);
     this.renderer.render();
   };
@@ -191,6 +223,7 @@ export class MatchRunner {
   dispose(): void {
     cancelAnimationFrame(this.rafId);
     window.removeEventListener('keydown', this.escHandler);
+    this.input.dispose();
     this.rig.dispose();
     this.renderer.dispose();
   }

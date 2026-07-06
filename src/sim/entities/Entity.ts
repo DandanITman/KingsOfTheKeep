@@ -65,6 +65,10 @@ export class Unit extends Entity {
   temporaryTicks: number | null = null;
   /** Steering velocity smoothing. */
   vel: Vec2 = { x: 0, y: 0 };
+  /** Timed per-unit stat buffs from abilities. */
+  buffs: { stat: string; op: 'mul' | 'add'; value: number; expiresTick: number }[] = [];
+  /** Damage-over-time stacks. */
+  dots: { dps: number; expiresTick: number; sourcePlayer: PlayerId }[] = [];
 
   constructor(player: PlayerId, pos: Vec2, def: UnitDef, baseMorale: number) {
     super(player, pos, def.hp);

@@ -23,6 +23,13 @@ import { movementSystem } from './systems/MovementSystem';
 import { gatherSystem } from './systems/GatherSystem';
 import { workerAllocationSystem } from './systems/WorkerAllocationSystem';
 import { economySystem } from './systems/EconomySystem';
+import { constructionSystem } from './systems/ConstructionSystem';
+import { trainingSystem } from './systems/TrainingSystem';
+import { effectsSystem } from './systems/AbilitySystem';
+import { pruneUnitBuffs } from './systems/statHelpers';
+import { registerCardHandlers } from './systems/CardSystem';
+
+registerCardHandlers();
 
 export interface SimOptions {
   autoAssignCivilians: boolean;
@@ -103,6 +110,8 @@ export class MatchSim {
     this.state.commandQueue.push(cmd);
   }
 
+  private recompute = (): void => this.recomputeCommand();
+
   recomputeCommand(): void {
     for (const p of this.state.players) {
       let cap = STARTING_COMMAND_CAP;
@@ -112,6 +121,11 @@ export class MatchSim {
       }
       for (const u of this.state.units) {
         if (u.player === p.id && !u.dead) used += u.def.commandCost;
+      }
+      // Queued units keep their command reserved.
+      for (const b of this.state.buildings) {
+        if (b.player !== p.id || b.dead) continue;
+        for (const item of b.trainQueue) used += getUnit(item.unitId).commandCost;
       }
       p.commandCap = Math.min(cap, MAX_COMMAND_CAP);
       p.commandUsed = used;
@@ -153,7 +167,11 @@ export class MatchSim {
     workerAllocationSystem(s, this.options.autoAssignCivilians);
     movementSystem(s);
     gatherSystem(s);
+    constructionSystem(s, this.recompute);
+    trainingSystem(s, this.recompute);
     economySystem(s);
+    effectsSystem(s);
+    pruneUnitBuffs(s);
 
     // 4. Cooldowns.
     for (const p of s.players) {
