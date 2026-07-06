@@ -193,6 +193,30 @@ export class MatchRunner {
     // Match end.
     this.bus.on('matchEnded', ({ winner }) => this.onMatchEnd(winner === 0));
 
+    // Battle audio.
+    import('@/audio/AudioManager').then(({ audio }) => audio.attachMatch(this.bus));
+
+    // Apply the gameplay-option default stances/allocations.
+    const gameplay = saveStore.data.options.gameplay;
+    const allocByBehavior = { aggressive: 80, balanced: 50, conservative: 30 }[gameplay.attackBehavior];
+    this.sim.enqueue({
+      kind: 'setAllocation',
+      player: 0,
+      mode: 'attack',
+      alloc: { infantry: allocByBehavior, ranged: allocByBehavior, cavalry: allocByBehavior, siege: allocByBehavior },
+    });
+
+    // Beginner tips.
+    if (gameplay.beginnerTips) this.showBeginnerTips(root);
+
+    // Dev fast-forward for balance testing (F8 toggles 8×).
+    this.devKeyHandler = (e: KeyboardEvent) => {
+      if (e.code === 'F8') {
+        this.speedMult = this.speedMult >= 8 ? setup.speed : 8;
+      }
+    };
+    window.addEventListener('keydown', this.devKeyHandler);
+
     // Esc opens pause menu.
     this.escHandler = (e: KeyboardEvent) => {
       if (e.code === 'Escape') this.togglePause();
@@ -207,7 +231,41 @@ export class MatchRunner {
   }
 
   private escHandler: (e: KeyboardEvent) => void;
+  private devKeyHandler: ((e: KeyboardEvent) => void) | null = null;
   private pauseOverlay: HTMLElement | null = null;
+
+  /** Rotating beginner tips for the first minutes of a match. */
+  private showBeginnerTips(root: HTMLElement): void {
+    const tips = [
+      'Your workers gather automatically — adjust the ⚒ Economy sliders to shift them.',
+      'Play building cards from the bottom bar, then click the map to place them.',
+      'Click a military building to train units, or click unit cards to auto-train.',
+      'Place attack flags (🚶⚔️) and press ATTACK to send your army.',
+      'Watch your command cap 👥 — build Houses to raise it.',
+    ];
+    let idx = 0;
+    const tip = el('div');
+    tip.style.cssText = `position:absolute;top:64px;left:50%;transform:translateX(-50%);background:var(--panel);
+      border:1px solid var(--border);border-radius:8px;padding:6px 14px;font-size:13px;color:#c9b681;z-index:6;cursor:pointer;`;
+    tip.textContent = `💡 ${tips[0]} (click to dismiss)`;
+    tip.addEventListener('click', () => {
+      timers.forEach(window.clearTimeout);
+      tip.remove();
+    });
+    root.append(tip);
+    const timers: number[] = [];
+    for (let i = 1; i <= tips.length; i++) {
+      timers.push(
+        window.setTimeout(() => {
+          if (i === tips.length) tip.remove();
+          else {
+            idx = i;
+            tip.textContent = `💡 ${tips[idx]} (click to dismiss)`;
+          }
+        }, i * 25000),
+      );
+    }
+  }
   private minimapFogQuery: ((pos: { x: number; y: number }, player: number) => number) | null = null;
 
   private loop = (now: number): void => {
@@ -323,6 +381,8 @@ export class MatchRunner {
   dispose(): void {
     cancelAnimationFrame(this.rafId);
     window.removeEventListener('keydown', this.escHandler);
+    if (this.devKeyHandler) window.removeEventListener('keydown', this.devKeyHandler);
+    import('@/audio/AudioManager').then(({ audio }) => audio.detachMatch());
     this.input.dispose();
     this.rig.dispose();
     this.renderer.dispose();

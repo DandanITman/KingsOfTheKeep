@@ -14,7 +14,7 @@ export class EffectsView {
   private stones: THREE.InstancedMesh;
   private dummy = new THREE.Object3D();
   private state: MatchState;
-  private impacts: { pos: { x: number; y: number }; bornMs: number; mesh: THREE.Mesh }[] = [];
+  private impacts: { pos: { x: number; y: number }; bornMs: number; mesh: THREE.Mesh; scaleBase: number }[] = [];
   private impactGeo = new THREE.RingGeometry(0.3, 0.5, 12);
   private impactMat = new THREE.MeshBasicMaterial({ color: 0xffaa44, transparent: true, side: THREE.DoubleSide, depthWrite: false });
 
@@ -30,15 +30,21 @@ export class EffectsView {
       this.root.add(m);
     }
     state.bus.on('projectileHit', ({ pos }) => this.spawnImpact(pos));
+    state.bus.on('abilityCast', ({ pos }) => {
+      if (pos) this.spawnImpact(pos, 0xd4af37, 3);
+    });
   }
 
-  private spawnImpact(pos: { x: number; y: number }): void {
+  private spawnImpact(pos: { x: number; y: number }, color = 0xffaa44, scale = 1): void {
     if (this.impacts.length > 20) return;
-    const mesh = new THREE.Mesh(this.impactGeo, this.impactMat.clone());
+    const material = this.impactMat.clone();
+    material.color.setHex(color);
+    const mesh = new THREE.Mesh(this.impactGeo, material);
     mesh.rotation.x = -Math.PI / 2;
     mesh.position.set(pos.x, 0.15, pos.y);
+    mesh.scale.setScalar(scale);
     this.root.add(mesh);
-    this.impacts.push({ pos, bornMs: performance.now(), mesh });
+    this.impacts.push({ pos, bornMs: performance.now(), mesh, scaleBase: scale });
   }
 
   update(alpha: number): void {
@@ -83,7 +89,7 @@ export class EffectsView {
         imp.mesh.removeFromParent();
         return false;
       }
-      imp.mesh.scale.setScalar(1 + age * 3);
+      imp.mesh.scale.setScalar(imp.scaleBase * (1 + age * 3));
       (imp.mesh.material as THREE.MeshBasicMaterial).opacity = 1 - age;
       return true;
     });

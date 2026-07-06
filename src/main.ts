@@ -40,4 +40,17 @@ saveStore.save();
 // Apply persisted UI scale
 document.documentElement.style.fontSize = `${16 * saveStore.data.options.display.uiScale}px`;
 
+// Audio starts on the first user gesture (browser autoplay policy).
+import('@/audio/AudioManager').then(({ audio }) => {
+  const kickoff = () => {
+    audio.start();
+    document.removeEventListener('pointerdown', kickoff);
+    document.removeEventListener('keydown', kickoff);
+  };
+  document.addEventListener('pointerdown', kickoff);
+  document.addEventListener('keydown', kickoff);
+  // Keep option changes live.
+  window.setInterval(() => audio.applyVolumes(), 1000);
+});
+
 screens.show('splash');
