@@ -261,7 +261,7 @@
 .alert-feed {
   position: absolute;
   right: 12px;
-  top: 64px;
+  top: 132px;
   display: flex;
   flex-direction: column;
   gap: 6px;

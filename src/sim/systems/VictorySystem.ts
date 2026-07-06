@@ -36,16 +36,9 @@ export function victorySystem(state: MatchState): void {
   const mode = state.setup.victoryMode;
 
   if (mode === 'shrines') {
-    updateShrines(state);
+    // Hold-time accrues in ObjectiveSystem; first to the target wins.
     for (const p of state.players) {
-      let held = 0;
-      for (const obj of state.objectives) {
-        if (obj.objType !== 'shrine') continue;
-        held = Math.max(held, obj.heldSecs.get(p.id) ?? 0);
-      }
-      // Win when cumulative hold on any shrine set reaches the target.
-      const total = shrineHoldTotal(state, p.id);
-      if (total >= SHRINE_HOLD_SECS) {
+      if (shrineHoldTotal(state, p.id) >= SHRINE_HOLD_SECS) {
         declareWinner(state, p.id, 'The shrines have been claimed');
         return;
       }
@@ -80,37 +73,6 @@ export function shrineHoldTotal(state: MatchState, player: PlayerId): number {
     total += obj.heldSecs.get(player) ?? 0;
   }
   return total;
-}
-
-function updateShrines(state: MatchState): void {
-  for (const obj of state.objectives) {
-    if (obj.objType !== 'shrine') continue;
-    // Owner = player with units nearby and no enemy contest.
-    const present = new Set<PlayerId>();
-    for (const u of state.units) {
-      if (u.dead || u.player < 0 || u.def.role === 'worker') continue;
-      const dx = u.pos.x - obj.pos.x;
-      const dy = u.pos.y - obj.pos.y;
-      if (dx * dx + dy * dy <= SHRINE_CAPTURE_RADIUS * SHRINE_CAPTURE_RADIUS) present.add(u.player);
-    }
-    if (present.size === 1) {
-      const holder = [...present][0];
-      if (obj.owner !== holder) {
-        obj.owner = holder;
-        state.bus.emit('alert', {
-          kind: 'shrineCaptured',
-          message: holder === 0 ? 'You hold a shrine.' : 'The enemy holds a shrine!',
-          pos: obj.pos,
-          player: 0,
-        });
-      }
-    } else if (present.size > 1) {
-      obj.owner = NEUTRAL_PLAYER; // contested
-    }
-    if (obj.owner >= 0) {
-      obj.heldSecs.set(obj.owner, (obj.heldSecs.get(obj.owner) ?? 0) + 1);
-    }
-  }
 }
 
 export function declareWinner(state: MatchState, winner: PlayerId, reason: string): void {

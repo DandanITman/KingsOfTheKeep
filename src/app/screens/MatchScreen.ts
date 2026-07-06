@@ -21,6 +21,7 @@ import { OverlayCanvas } from '@/render/OverlayCanvas';
 import { FlagView } from '@/render/FlagView';
 import { FogView } from '@/render/FogView';
 import { MacroPanel } from '@/ui/hud/MacroPanel';
+import { ObjectivesPanel } from '@/ui/hud/ObjectivesPanel';
 import { BotController } from '@/ai/BotController';
 import { createBotProfile } from '@/ai/BotProfile';
 import { FOG_VISIBLE, FOG_BLACK } from '@/sim/systems/FogSystem';
@@ -71,6 +72,7 @@ export class MatchRunner {
   private flagView: FlagView;
   private macroPanel: MacroPanel;
   private fogView: FogView;
+  private objectivesPanel: ObjectivesPanel;
   bot: BotController;
   private screens: ScreenManager;
   private root: HTMLElement;
@@ -122,8 +124,13 @@ export class MatchRunner {
       b.player === 0 || state.fog.seenBuildingIds[0].has(b.id);
     this.minimapFogQuery = (pos, player) => state.fog.valueAt(pos, player as 0 | 1);
 
-    // The bot.
-    this.bot = new BotController(this.sim, createBotProfile(setup.botDifficulty, setup.botFaction));
+    // The bot. In survival mode the waves are the threat — the bot turtles.
+    const botProfile = createBotProfile(
+      setup.victoryMode === 'survival' ? 'easy' : setup.botDifficulty,
+      setup.botFaction,
+    );
+    if (setup.victoryMode === 'survival') botProfile.earliestAttackSecs = Number.POSITIVE_INFINITY;
+    this.bot = new BotController(this.sim, botProfile);
 
     // Input: placement + targeting modes.
     this.input = new MatchInput(root, this.renderer.camera, this.sim, this.ghost, () => {
@@ -162,6 +169,7 @@ export class MatchRunner {
     this.selectionPanel = new SelectionPanel(this.sim, () => this.selection.selected);
     this.alertFeed = new AlertFeed(this.bus, (pos) => this.rig.jumpTo(pos));
     this.macroPanel = new MacroPanel(this.sim, (flagType) => this.input.startFlagPlacing(flagType));
+    this.objectivesPanel = new ObjectivesPanel(state);
     this.input.onFlagPlace = (flagType, world) => {
       this.sim.enqueue({ kind: 'placeFlag', player: 0, flagType, pos: world });
     };
@@ -170,7 +178,7 @@ export class MatchRunner {
     bottomLeft.style.flexDirection = 'column';
     bottomLeft.style.alignItems = 'flex-start';
     bottomLeft.append(this.selectionPanel.root, this.economyPanel.root);
-    hud.append(this.topBar.root, this.minimap.canvas, bottomLeft, this.cardBar.root, this.alertFeed.root, this.macroPanel.root);
+    hud.append(this.topBar.root, this.minimap.canvas, bottomLeft, this.cardBar.root, this.alertFeed.root, this.macroPanel.root, this.objectivesPanel.root);
     root.append(hud);
     this.sim.options.autoAssignCivilians = saveStore.data.options.gameplay.autoAssignCivilians;
 
@@ -230,6 +238,7 @@ export class MatchRunner {
     this.fogView.update();
     this.terrain.update();
     this.macroPanel.update();
+    this.objectivesPanel.update();
     this.selection.prune();
     this.overlay.update(alpha, saveStore.data.options.display);
     this.topBar.update();

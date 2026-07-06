@@ -35,6 +35,8 @@ import { macroCommandSystem } from './systems/MacroCommandSystem';
 import { registerFlagHandlers } from './systems/FlagSystem';
 import { moraleSystem } from './systems/MoraleSystem';
 import { supportSystem } from './systems/SupportSystem';
+import { objectiveSystem } from './systems/ObjectiveSystem';
+import { WaveSpawner } from './systems/WaveSystem';
 
 registerCardHandlers();
 registerFlagHandlers();
@@ -46,6 +48,7 @@ export interface SimOptions {
 export class MatchSim {
   readonly state: MatchState;
   options: SimOptions = { autoAssignCivilians: true };
+  readonly waves: WaveSpawner;
 
   constructor(setup: MatchSetup, bus: EventBus, decks?: { player?: Deck; bot?: Deck }) {
     resetEntityIds();
@@ -70,6 +73,7 @@ export class MatchSim {
 
     this.spawnMapEntities();
     this.spawnStartingBases();
+    this.waves = new WaveSpawner(this.state);
   }
 
   private spawnMapEntities(): void {
@@ -183,6 +187,8 @@ export class MatchSim {
     moraleSystem(s);
     supportSystem(s);
     economySystem(s);
+    objectiveSystem(s);
+    this.waves.update(s);
     effectsSystem(s);
     pruneUnitBuffs(s);
     s.fog.update(s);
