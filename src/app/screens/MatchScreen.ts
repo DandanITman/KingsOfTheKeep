@@ -11,6 +11,7 @@ import { UnitView } from '@/render/UnitView';
 import { BuildingView } from '@/render/BuildingView';
 import { TopBar } from '@/ui/hud/TopBar';
 import { MinimapView } from '@/ui/hud/MinimapView';
+import { EconomyPanel } from '@/ui/hud/EconomyPanel';
 import type { Screen, ScreenManager } from '../ScreenManager';
 
 /**
@@ -44,6 +45,7 @@ export class MatchRunner {
   private buildingView: BuildingView;
   private topBar: TopBar;
   private minimap: MinimapView;
+  private economyPanel: EconomyPanel;
   private screens: ScreenManager;
   private root: HTMLElement;
 
@@ -74,8 +76,14 @@ export class MatchRunner {
     const hud = el('div', { className: 'hud' });
     this.topBar = new TopBar(state, () => this.togglePause());
     this.minimap = new MinimapView(state, (world) => this.rig.jumpTo(world));
-    hud.append(this.topBar.root, this.minimap.canvas);
+    this.economyPanel = new EconomyPanel(state, (ratios) =>
+      this.sim.enqueue({ kind: 'setWorkerRatios', player: 0, ratios }),
+    );
+    const bottomLeft = el('div', { className: 'hud-bottom' });
+    bottomLeft.append(this.economyPanel.root);
+    hud.append(this.topBar.root, this.minimap.canvas, bottomLeft);
     root.append(hud);
+    this.sim.options.autoAssignCivilians = saveStore.data.options.gameplay.autoAssignCivilians;
 
     // Intro banner.
     const intro = el('div', { text: 'Defend your Keep. Destroy theirs.' });
@@ -128,6 +136,7 @@ export class MatchRunner {
     this.buildingView.update();
     this.terrain.update();
     this.topBar.update();
+    this.economyPanel.update();
     this.minimap.update(this.rig.target, this.rig.zoom);
     this.renderer.render();
   };

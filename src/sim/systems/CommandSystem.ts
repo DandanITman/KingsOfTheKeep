@@ -44,6 +44,16 @@ export function processCommand(sim: MatchSim, cmd: Command): void {
       s.bus.emit('matchEnded', { winner: enemy.id, loser: cmd.player, reason: 'concession' });
       break;
     }
+    case 'directGather': {
+      const node = s.node(cmd.nodeId);
+      if (!node) break;
+      for (const id of cmd.unitIds) {
+        const u = s.unit(id);
+        if (!u || u.player !== cmd.player || u.def.role !== 'worker') continue;
+        u.task = { kind: 'gather', nodeId: node.id, phase: 'toNode', timer: 0, pinned: true };
+      }
+      break;
+    }
     // Handled by systems added in later milestones:
     case 'playCard':
     case 'placeFlag':
@@ -53,7 +63,6 @@ export function processCommand(sim: MatchSim, cmd: Command): void {
     case 'cancelTrain':
     case 'startUpgrade':
     case 'emergency':
-    case 'directGather':
     case 'directBuild':
     case 'marketTrade':
     case 'setRally':

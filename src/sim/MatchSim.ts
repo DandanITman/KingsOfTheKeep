@@ -20,9 +20,17 @@ import { Building, ObjectivePoint, ResourceNode, Unit, resetEntityIds } from './
 import { MatchState, createPlayerState } from './MatchState';
 import { processCommand } from './systems/CommandSystem';
 import { movementSystem } from './systems/MovementSystem';
+import { gatherSystem } from './systems/GatherSystem';
+import { workerAllocationSystem } from './systems/WorkerAllocationSystem';
+import { economySystem } from './systems/EconomySystem';
+
+export interface SimOptions {
+  autoAssignCivilians: boolean;
+}
 
 export class MatchSim {
   readonly state: MatchState;
+  options: SimOptions = { autoAssignCivilians: true };
 
   constructor(setup: MatchSetup, bus: EventBus, decks?: { player?: Deck; bot?: Deck }) {
     resetEntityIds();
@@ -142,7 +150,10 @@ export class MatchSim {
     }
 
     // 3. Systems in fixed order.
+    workerAllocationSystem(s, this.options.autoAssignCivilians);
     movementSystem(s);
+    gatherSystem(s);
+    economySystem(s);
 
     // 4. Cooldowns.
     for (const p of s.players) {
