@@ -1,7 +1,7 @@
 import { EventBus } from '@/core/EventBus';
 import { el, button } from '@/ui/components/dom';
 import { saveStore } from '@/core/save/SaveStore';
-import { TICK_SECS } from '@/data/balance';
+import { REWARD_LOSS, REWARD_WIN, TICK_SECS } from '@/data/balance';
 import type { MatchSetup } from '@/data/types';
 import { MatchSim } from '@/sim/MatchSim';
 import { Renderer } from '@/render/Renderer';
@@ -86,7 +86,8 @@ export class MatchRunner {
     this.root = root;
     this.screens = screens;
     this.speedMult = setup.speed;
-    this.sim = new MatchSim(setup, this.bus);
+    const savedDeck = saveStore.data.decks.find((d) => d.id === setup.playerDeckId);
+    this.sim = new MatchSim(setup, this.bus, savedDeck ? { player: savedDeck } : undefined);
     const state = this.sim.state;
     const display = saveStore.data.options.display;
 
@@ -273,13 +274,37 @@ export class MatchRunner {
   private onMatchEnd(playerWon: boolean): void {
     if (this.ended) return;
     this.ended = true;
+
+    // Progression: rewards and stats (GDD §41.1).
+    const save = saveStore.data;
+    const difficulty = this.sim.state.setup.botDifficulty;
+    const reward = playerWon ? REWARD_WIN[difficulty] : REWARD_LOSS;
+    save.currency += reward;
+    save.stats.matches++;
+    if (playerWon) {
+      save.stats.wins++;
+      save.stats.keepsDestroyed++;
+      save.stats.difficultyCleared[difficulty] = true;
+      const secs = Math.floor(this.sim.state.timeSecs);
+      if (save.stats.fastestWinSecs === null || secs < save.stats.fastestWinSecs) {
+        save.stats.fastestWinSecs = secs;
+      }
+    } else {
+      save.stats.losses++;
+    }
+    const factionId = this.sim.state.setup.playerFaction;
+    const byFaction = (save.stats.byFaction[factionId] ??= { wins: 0, losses: 0 });
+    if (playerWon) byFaction.wins++;
+    else byFaction.losses++;
+    saveStore.save();
+
     const overlay = el('div', { className: `match-end ${playerWon ? 'victory' : 'defeat'}` });
     overlay.append(
       el('h1', { text: playerWon ? 'VICTORY' : 'DEFEAT' }),
       el('p', {
         text: playerWon
-          ? 'The enemy fortress lies in ruins. The realm is yours.'
-          : 'Your keep has fallen. The banners are lowered.',
+          ? `The enemy fortress lies in ruins. The realm is yours. (+${reward} gold)`
+          : `Your keep has fallen. The banners are lowered. (+${reward} gold)`,
       }),
       button('Return to Menu', () => this.screens.show('mainMenu'), 'btn primary'),
     );

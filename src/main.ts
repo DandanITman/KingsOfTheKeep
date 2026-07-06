@@ -1,7 +1,11 @@
 import '@/ui/styles/main.css';
 import '@/ui/styles/hud.css';
 import { createMatchScreen } from '@/app/screens/MatchScreen';
+import { createDeckEditorScreen } from '@/app/screens/DeckEditorScreen';
+import { createShopScreen } from '@/app/screens/ShopScreen';
 import { validateCardDb } from '@/data/cards';
+import { ensureStarterCollection } from '@/data/deckValidation';
+import { STARTER_DECKS } from '@/data/starterDecks';
 import { ScreenManager } from '@/app/ScreenManager';
 import { createSplashScreen } from '@/app/screens/SplashScreen';
 import { createMainMenuScreen } from '@/app/screens/MainMenuScreen';
@@ -21,16 +25,17 @@ screens.register('playSetup', () => createPlaySetupScreen(screens));
 screens.register('options', () => createOptionsScreen(screens));
 screens.register('credits', () => createCreditsScreen(screens));
 screens.register('loading', () => createLoadingScreen(screens));
-screens.register('deckEditor', () =>
-  createStubScreen(screens, 'Deck Editor', 'The war table is being carved. Deck building arrives soon.'),
-);
-screens.register('shop', () =>
-  createStubScreen(screens, 'Shop', 'The merchants are still stocking their stalls.'),
-);
+screens.register('deckEditor', () => createDeckEditorScreen(screens));
+screens.register('shop', () => createShopScreen(screens));
 screens.register('match', () => createMatchScreen(screens));
 
 const dbErrors = validateCardDb();
 if (dbErrors.length > 0) console.error('Card DB validation errors:', dbErrors);
+
+// Grant the launch collection (starter deck cards + all commons).
+const starterCardIds = Object.values(STARTER_DECKS).flatMap((d) => d?.cardIds ?? []);
+ensureStarterCollection(saveStore.data.collection, starterCardIds);
+saveStore.save();
 
 // Apply persisted UI scale
 document.documentElement.style.fontSize = `${16 * saveStore.data.options.display.uiScale}px`;
