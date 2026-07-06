@@ -18,6 +18,20 @@ export function applyDamage(state: MatchState, target: Entity, raw: number, opts
   if (target.dead) return;
   let damage = raw;
 
+  // Threat memory for defensive weighting and alerts.
+  if (target.player >= 0 && opts.sourcePlayer !== target.player) {
+    const p = state.players[target.player];
+    p.recentThreats.push({ pos: { ...target.pos }, expiresTick: state.tick + 80 });
+    if (p.recentThreats.length > 40) p.recentThreats.shift();
+    if (target instanceof Building) {
+      if (target.def.kind === 'fortress') {
+        state.bus.emit('alert', { kind: 'fortressUnderAttack', message: 'Your Main Fortress is under attack!', pos: target.pos, player: target.player });
+      } else {
+        state.bus.emit('alert', { kind: 'enemyAttacking', message: `${target.def.name} is under attack!`, pos: target.pos, player: target.player });
+      }
+    }
+  }
+
   if (target instanceof Unit) {
     if (!opts.trueDamage) {
       const armor = opts.pierce

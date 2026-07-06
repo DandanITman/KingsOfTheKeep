@@ -18,6 +18,8 @@ import { AlertFeed } from '@/ui/hud/AlertFeed';
 import { GhostPlacementView } from '@/render/GhostPlacementView';
 import { EffectsView } from '@/render/EffectsView';
 import { OverlayCanvas } from '@/render/OverlayCanvas';
+import { FlagView } from '@/render/FlagView';
+import { MacroPanel } from '@/ui/hud/MacroPanel';
 import { MatchInput } from './MatchInput';
 import { MatchSelection } from './MatchSelection';
 import type { Screen, ScreenManager } from '../ScreenManager';
@@ -62,6 +64,8 @@ export class MatchRunner {
   private selection: MatchSelection;
   private selectionPanel: SelectionPanel;
   private alertFeed: AlertFeed;
+  private flagView: FlagView;
+  private macroPanel: MacroPanel;
   private screens: ScreenManager;
   private root: HTMLElement;
 
@@ -88,7 +92,15 @@ export class MatchRunner {
     this.buildingView = new BuildingView(state);
     this.ghost = new GhostPlacementView();
     this.effects = new EffectsView(state);
-    this.renderer.scene.add(this.terrain.root, this.unitView.root, this.buildingView.root, this.ghost.root, this.effects.root);
+    this.flagView = new FlagView(state);
+    this.renderer.scene.add(
+      this.terrain.root,
+      this.unitView.root,
+      this.buildingView.root,
+      this.ghost.root,
+      this.effects.root,
+      this.flagView.root,
+    );
     this.overlay = new OverlayCanvas(root, state, this.renderer.camera);
 
     // Input: placement + targeting modes.
@@ -126,12 +138,16 @@ export class MatchRunner {
     this.selection = new MatchSelection(this.sim, this.input, this.overlay);
     this.selectionPanel = new SelectionPanel(this.sim, () => this.selection.selected);
     this.alertFeed = new AlertFeed(this.bus, (pos) => this.rig.jumpTo(pos));
+    this.macroPanel = new MacroPanel(this.sim, (flagType) => this.input.startFlagPlacing(flagType));
+    this.input.onFlagPlace = (flagType, world) => {
+      this.sim.enqueue({ kind: 'placeFlag', player: 0, flagType, pos: world });
+    };
 
     const bottomLeft = el('div', { className: 'hud-bottom' });
     bottomLeft.style.flexDirection = 'column';
     bottomLeft.style.alignItems = 'flex-start';
     bottomLeft.append(this.selectionPanel.root, this.economyPanel.root);
-    hud.append(this.topBar.root, this.minimap.canvas, bottomLeft, this.cardBar.root, this.alertFeed.root);
+    hud.append(this.topBar.root, this.minimap.canvas, bottomLeft, this.cardBar.root, this.alertFeed.root, this.macroPanel.root);
     root.append(hud);
     this.sim.options.autoAssignCivilians = saveStore.data.options.gameplay.autoAssignCivilians;
 
@@ -185,7 +201,9 @@ export class MatchRunner {
     this.unitView.update(alpha, now);
     this.buildingView.update();
     this.effects.update(alpha);
+    this.flagView.update(now);
     this.terrain.update();
+    this.macroPanel.update();
     this.selection.prune();
     this.overlay.update(alpha, saveStore.data.options.display);
     this.topBar.update();

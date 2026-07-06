@@ -31,8 +31,11 @@ import { registerCardHandlers } from './systems/CardSystem';
 import { combatSystem } from './systems/CombatSystem';
 import { projectileSystem } from './systems/ProjectileSystem';
 import { victorySystem } from './systems/VictorySystem';
+import { macroCommandSystem } from './systems/MacroCommandSystem';
+import { registerFlagHandlers } from './systems/FlagSystem';
 
 registerCardHandlers();
+registerFlagHandlers();
 
 export interface SimOptions {
   autoAssignCivilians: boolean;
@@ -168,6 +171,7 @@ export class MatchSim {
 
     // 3. Systems in fixed order.
     workerAllocationSystem(s, this.options.autoAssignCivilians);
+    macroCommandSystem(s);
     movementSystem(s);
     gatherSystem(s);
     constructionSystem(s, this.recompute);

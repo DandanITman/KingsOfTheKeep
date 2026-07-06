@@ -61,6 +61,12 @@ export interface PlayerState {
   fortressId: EntityId | null;
   /** Positions of recent ally deaths (morale) with expiry ticks. */
   recentDeaths: { pos: Vec2; expiresTick: number }[];
+  /** Positions where our entities recently took damage (threat map). */
+  recentThreats: { pos: Vec2; expiresTick: number }[];
+  /** Index of the attack flag the army is currently marching to. */
+  attackFlagIndex: number;
+  /** Next flag order counter. */
+  flagOrderCounter: number;
 }
 
 export function defaultAlloc(): Record<UnitRole, number> {
@@ -296,6 +302,9 @@ export function createPlayerState(
     score: 0,
     fortressId: null,
     recentDeaths: [],
+    recentThreats: [],
+    attackFlagIndex: 0,
+    flagOrderCounter: 0,
   };
 }
 
