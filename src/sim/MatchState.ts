@@ -26,6 +26,7 @@ import {
 import { ModifierStack } from './ModifierStack';
 import { NavGrid } from './path/NavGrid';
 import { FlowFieldCache } from './path/FlowField';
+import { FogOfWar } from './systems/FogSystem';
 
 // ---------------------------------------------------------------------------
 // Player state
@@ -131,6 +132,7 @@ export class MatchState {
   /** Budgeted A* computations per tick. */
   pathComputationsThisTick = 0;
   flows: FlowFieldCache;
+  fog: FogOfWar;
 
   /** Per-player memory of enemy buildings seen in fog. */
   seenBuildings: Map<EntityId, { pos: Vec2; defId: string; player: PlayerId }>[] = [];
@@ -145,6 +147,7 @@ export class MatchState {
     this.rng = new Rng(setup.seed);
     this.nav = new NavGrid(map);
     this.flows = new FlowFieldCache();
+    this.fog = new FogOfWar(map.worldSize[0], map.worldSize[1]);
   }
 
   // --- entity management ---

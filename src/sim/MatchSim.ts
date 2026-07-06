@@ -181,6 +181,7 @@ export class MatchSim {
     economySystem(s);
     effectsSystem(s);
     pruneUnitBuffs(s);
+    s.fog.update(s);
     victorySystem(s);
 
     // 4. Cooldowns.

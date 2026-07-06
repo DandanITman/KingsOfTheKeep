@@ -19,7 +19,11 @@ import { GhostPlacementView } from '@/render/GhostPlacementView';
 import { EffectsView } from '@/render/EffectsView';
 import { OverlayCanvas } from '@/render/OverlayCanvas';
 import { FlagView } from '@/render/FlagView';
+import { FogView } from '@/render/FogView';
 import { MacroPanel } from '@/ui/hud/MacroPanel';
+import { BotController } from '@/ai/BotController';
+import { createBotProfile } from '@/ai/BotProfile';
+import { FOG_VISIBLE, FOG_BLACK } from '@/sim/systems/FogSystem';
 import { MatchInput } from './MatchInput';
 import { MatchSelection } from './MatchSelection';
 import type { Screen, ScreenManager } from '../ScreenManager';
@@ -66,6 +70,8 @@ export class MatchRunner {
   private alertFeed: AlertFeed;
   private flagView: FlagView;
   private macroPanel: MacroPanel;
+  private fogView: FogView;
+  bot: BotController;
   private screens: ScreenManager;
   private root: HTMLElement;
 
@@ -93,6 +99,7 @@ export class MatchRunner {
     this.ghost = new GhostPlacementView();
     this.effects = new EffectsView(state);
     this.flagView = new FlagView(state);
+    this.fogView = new FogView(state);
     this.renderer.scene.add(
       this.terrain.root,
       this.unitView.root,
@@ -100,8 +107,22 @@ export class MatchRunner {
       this.ghost.root,
       this.effects.root,
       this.flagView.root,
+      this.fogView.mesh,
     );
     this.overlay = new OverlayCanvas(root, state, this.renderer.camera);
+
+    // Fog visibility filters: enemy units need active vision; enemy buildings
+    // stay visible as "last seen" ghosts once discovered.
+    const enemyUnitVisible = (u: import('@/sim/entities/Entity').Unit) =>
+      u.player === 0 || state.fog.valueAt(u.pos, 0) === FOG_VISIBLE;
+    this.unitView.visibleFilter = enemyUnitVisible;
+    this.overlay.visibleFilter = enemyUnitVisible;
+    this.buildingView.visibleFilter = (b) =>
+      b.player === 0 || state.fog.seenBuildingIds[0].has(b.id);
+    this.minimapFogQuery = (pos, player) => state.fog.valueAt(pos, player as 0 | 1);
+
+    // The bot.
+    this.bot = new BotController(this.sim, createBotProfile(setup.botDifficulty, setup.botFaction));
 
     // Input: placement + targeting modes.
     this.input = new MatchInput(root, this.renderer.camera, this.sim, this.ghost, () => {
@@ -114,6 +135,7 @@ export class MatchRunner {
     const hud = el('div', { className: 'hud' });
     this.topBar = new TopBar(state, () => this.togglePause());
     this.minimap = new MinimapView(state, (world) => this.rig.jumpTo(world));
+    this.minimap.fogQuery = this.minimapFogQuery;
     this.economyPanel = new EconomyPanel(state, (ratios) =>
       this.sim.enqueue({ kind: 'setWorkerRatios', player: 0, ratios }),
     );
@@ -177,6 +199,7 @@ export class MatchRunner {
 
   private escHandler: (e: KeyboardEvent) => void;
   private pauseOverlay: HTMLElement | null = null;
+  private minimapFogQuery: ((pos: { x: number; y: number }, player: number) => number) | null = null;
 
   private loop = (now: number): void => {
     this.rafId = requestAnimationFrame(this.loop);
@@ -188,6 +211,7 @@ export class MatchRunner {
       this.accumulator += dt * this.speedMult;
       let ticks = 0;
       while (this.accumulator >= TICK_SECS && ticks < 8) {
+        this.bot.update();
         this.sim.tick();
         this.accumulator -= TICK_SECS;
         ticks++;
@@ -202,6 +226,7 @@ export class MatchRunner {
     this.buildingView.update();
     this.effects.update(alpha);
     this.flagView.update(now);
+    this.fogView.update();
     this.terrain.update();
     this.macroPanel.update();
     this.selection.prune();
