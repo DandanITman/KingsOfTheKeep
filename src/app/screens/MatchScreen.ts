@@ -13,8 +13,13 @@ import { TopBar } from '@/ui/hud/TopBar';
 import { MinimapView } from '@/ui/hud/MinimapView';
 import { EconomyPanel } from '@/ui/hud/EconomyPanel';
 import { CardBar } from '@/ui/hud/CardBar';
+import { SelectionPanel } from '@/ui/hud/SelectionPanel';
+import { AlertFeed } from '@/ui/hud/AlertFeed';
 import { GhostPlacementView } from '@/render/GhostPlacementView';
+import { EffectsView } from '@/render/EffectsView';
+import { OverlayCanvas } from '@/render/OverlayCanvas';
 import { MatchInput } from './MatchInput';
+import { MatchSelection } from './MatchSelection';
 import type { Screen, ScreenManager } from '../ScreenManager';
 
 /**
@@ -52,6 +57,11 @@ export class MatchRunner {
   private cardBar: CardBar;
   private ghost: GhostPlacementView;
   private input: MatchInput;
+  private effects: EffectsView;
+  private overlay: OverlayCanvas;
+  private selection: MatchSelection;
+  private selectionPanel: SelectionPanel;
+  private alertFeed: AlertFeed;
   private screens: ScreenManager;
   private root: HTMLElement;
 
@@ -77,7 +87,9 @@ export class MatchRunner {
     this.unitView = new UnitView(state);
     this.buildingView = new BuildingView(state);
     this.ghost = new GhostPlacementView();
-    this.renderer.scene.add(this.terrain.root, this.unitView.root, this.buildingView.root, this.ghost.root);
+    this.effects = new EffectsView(state);
+    this.renderer.scene.add(this.terrain.root, this.unitView.root, this.buildingView.root, this.ghost.root, this.effects.root);
+    this.overlay = new OverlayCanvas(root, state, this.renderer.camera);
 
     // Input: placement + targeting modes.
     this.input = new MatchInput(root, this.renderer.camera, this.sim, this.ghost, () => {
@@ -110,9 +122,16 @@ export class MatchRunner {
         }
       }
     });
+    // Selection.
+    this.selection = new MatchSelection(this.sim, this.input, this.overlay);
+    this.selectionPanel = new SelectionPanel(this.sim, () => this.selection.selected);
+    this.alertFeed = new AlertFeed(this.bus, (pos) => this.rig.jumpTo(pos));
+
     const bottomLeft = el('div', { className: 'hud-bottom' });
-    bottomLeft.append(this.economyPanel.root);
-    hud.append(this.topBar.root, this.minimap.canvas, bottomLeft, this.cardBar.root);
+    bottomLeft.style.flexDirection = 'column';
+    bottomLeft.style.alignItems = 'flex-start';
+    bottomLeft.append(this.selectionPanel.root, this.economyPanel.root);
+    hud.append(this.topBar.root, this.minimap.canvas, bottomLeft, this.cardBar.root, this.alertFeed.root);
     root.append(hud);
     this.sim.options.autoAssignCivilians = saveStore.data.options.gameplay.autoAssignCivilians;
 
@@ -165,10 +184,14 @@ export class MatchRunner {
     this.renderer.followShadow(this.rig.target);
     this.unitView.update(alpha, now);
     this.buildingView.update();
+    this.effects.update(alpha);
     this.terrain.update();
+    this.selection.prune();
+    this.overlay.update(alpha, saveStore.data.options.display);
     this.topBar.update();
     this.economyPanel.update();
     this.cardBar.update();
+    this.selectionPanel.update();
     this.minimap.update(this.rig.target, this.rig.zoom);
     this.renderer.render();
   };

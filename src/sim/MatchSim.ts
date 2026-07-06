@@ -28,6 +28,9 @@ import { trainingSystem } from './systems/TrainingSystem';
 import { effectsSystem } from './systems/AbilitySystem';
 import { pruneUnitBuffs } from './systems/statHelpers';
 import { registerCardHandlers } from './systems/CardSystem';
+import { combatSystem } from './systems/CombatSystem';
+import { projectileSystem } from './systems/ProjectileSystem';
+import { victorySystem } from './systems/VictorySystem';
 
 registerCardHandlers();
 
@@ -169,9 +172,12 @@ export class MatchSim {
     gatherSystem(s);
     constructionSystem(s, this.recompute);
     trainingSystem(s, this.recompute);
+    combatSystem(s);
+    projectileSystem(s);
     economySystem(s);
     effectsSystem(s);
     pruneUnitBuffs(s);
+    victorySystem(s);
 
     // 4. Cooldowns.
     for (const p of s.players) {
@@ -179,6 +185,11 @@ export class MatchSim {
     }
 
     // 5. Cleanup.
+    const unitCount = s.units.length;
+    const buildingCount = s.buildings.length;
     s.sweepDead();
+    if (s.units.length !== unitCount || s.buildings.length !== buildingCount) {
+      this.recomputeCommand();
+    }
   }
 }

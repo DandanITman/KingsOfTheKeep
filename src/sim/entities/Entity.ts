@@ -166,6 +166,7 @@ export class Flag extends Entity {
 // ---------------------------------------------------------------------------
 
 export class Projectile extends Entity {
+  readonly startPos: Vec2;
   targetId: EntityId;
   targetPos: Vec2;
   speed: number;
@@ -189,6 +190,7 @@ export class Projectile extends Entity {
     arc: 'flat' | 'lob';
   }) {
     super(opts.player, opts.pos, 1);
+    this.startPos = { ...opts.pos };
     this.sourcePlayer = opts.player;
     this.targetId = opts.targetId;
     this.targetPos = { ...opts.targetPos };
