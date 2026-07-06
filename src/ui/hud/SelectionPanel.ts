@@ -126,6 +126,30 @@ export class SelectionPanel {
         this.root.append(this.queueEl);
       }
 
+      // Market trading (GDD §18.1 Market): sell 100 of a resource for gold, or buy with gold.
+      if ((b.def.trainKey === 'market' || b.defId.includes('bazaar')) && b.player === 0) {
+        const tradeWrap = el('div');
+        tradeWrap.style.cssText = 'margin-top:6px;';
+        tradeWrap.append(el('div', { text: 'Trade (100 at a time):' }));
+        const sellRow = el('div');
+        sellRow.style.cssText = 'display:flex;gap:4px;margin-top:3px;';
+        for (const res of ['food', 'wood', 'stone'] as const) {
+          const sellBtn = el('button', { className: 'btn small', text: `${res} → 🪙`, title: `Sell 100 ${res} for gold` });
+          sellBtn.style.cssText += 'font-size:10px;padding:3px 6px;min-width:0;';
+          sellBtn.addEventListener('click', () =>
+            this.sim.enqueue({ kind: 'marketTrade', player: 0, sell: res, buy: 'gold', amount: 100 }),
+          );
+          const buyBtn = el('button', { className: 'btn small', text: `🪙 → ${res}`, title: `Buy ${res} with 100 gold` });
+          buyBtn.style.cssText += 'font-size:10px;padding:3px 6px;min-width:0;';
+          buyBtn.addEventListener('click', () =>
+            this.sim.enqueue({ kind: 'marketTrade', player: 0, sell: 'gold', buy: res, amount: 100 }),
+          );
+          sellRow.append(sellBtn, buyBtn);
+        }
+        tradeWrap.append(sellRow);
+        this.root.append(tradeWrap);
+      }
+
       // Research buttons.
       if (b.def.researches && b.player === 0) {
         const p = this.state.players[0];

@@ -33,6 +33,7 @@ import { projectileSystem } from './systems/ProjectileSystem';
 import { victorySystem } from './systems/VictorySystem';
 import { macroCommandSystem } from './systems/MacroCommandSystem';
 import { registerFlagHandlers } from './systems/FlagSystem';
+import { moraleSystem } from './systems/MoraleSystem';
 
 registerCardHandlers();
 registerFlagHandlers();
@@ -178,6 +179,7 @@ export class MatchSim {
     trainingSystem(s, this.recompute);
     combatSystem(s);
     projectileSystem(s);
+    moraleSystem(s);
     economySystem(s);
     effectsSystem(s);
     pruneUnitBuffs(s);
