@@ -18,6 +18,20 @@ const ICONS: Record<string, string> = {
   // Abilities
   rally: '📯', arrowRain: '🌧️', decree: '📜', trowel: '🧰', charge: '💨',
   holdLine: '🛡️', standard: '✨', castleDoctrine: '🏰',
+  // Asian
+  monk: '🧘', rocket: '🚀', fan: '🪭', pagoda: '🏯', temple: '⛩️', bamboo: '🎋',
+  discipline: '📐', fireArrows: '🔥', smoke: '🌫️', dragonRockets: '🐉',
+  silentMarch: '🤫', templeBlessing: '🙏', perfectFormation: '💠', windReposition: '🌪️',
+  // African
+  drum: '🥁', elephant: '🐘', rhino: '🦏', zebra: '🦓', sling: '🪃', gourd: '🎃',
+  hearth: '🔥', warDrums: '🥁', courage: '💪', dust: '🌪️', stampede: '🐘',
+  sunfire: '☀️', goldenSurge: '💰', shieldCircle: '🛡️',
+  // Middle Eastern
+  camel: '🐪', scimitar: '⚔️', dome: '🕌', bazaar: '🏪', minaret: '🕌', oasis: '🏝️',
+  sandstorm: '🌪️', bazaarBoom: '💰', burningOil: '🛢️', desertMarch: '🐪',
+  caravan: '🐫', meteor: '☄️', goldenCommand: '👑', siegeMastery: '🎯',
+  // Neutral & heroes
+  golem: '🗿', lionDuke: '🦁', jadeStrategist: '🐉', sunshieldQueen: '👸', crescentVizier: '🌙',
   // Upgrades
   tier2: '🏰', tier3: '🏯', tier4: '👑', axe: '🪓', pick: '⛏️', gold: '🪙',
   wall: '🧱', hammer: '🔨', arrow: '➶', horseArmor: '🐴', lance: '🔱',

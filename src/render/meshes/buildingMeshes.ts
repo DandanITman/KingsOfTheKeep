@@ -16,6 +16,21 @@ const ROOF_RED = 0x9a4a3a;
 
 type Factory = (team: number) => THREE.Group;
 
+/** Half-sphere dome (Middle Eastern architecture). */
+function sphereDome(x: number, y: number, z: number, r: number, color: number): THREE.Mesh {
+  const geo = new THREE.SphereGeometry(r, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2);
+  const m = new THREE.Mesh(geo, mat(color));
+  m.position.set(x, y, z);
+  return m;
+}
+
+/** Golden finial orb. */
+function sphereGold(x: number, y: number, z: number): THREE.Mesh {
+  const m = new THREE.Mesh(new THREE.SphereGeometry(0.3, 6, 5), mat(0xd4af37));
+  m.position.set(x, y, z);
+  return m;
+}
+
 const FACTORIES: Record<string, Factory> = {
   keepEuropean: (team) => {
     const g = group(
@@ -175,6 +190,138 @@ const FACTORIES: Record<string, Factory> = {
     box(2.4, 0.6, 2.0, ROOF_RED, 0, 1.6),
     box(0.6, 0.6, 0.1, 0xd4af37, 0, 1.0, 0.95),
     banner(team, 2.2, 1.0, 0.7),
+  ),
+  // --- Asian ---
+  keepAsian: (team) => group(
+    box(4.0, 1.2, 4.0, 0xb59a6a, 0, 0.6),
+    box(3.2, 1.0, 3.2, 0x9a4a3a, 0, 1.7),   // pagoda tier 1 roof
+    box(2.6, 0.9, 2.6, 0xb59a6a, 0, 2.3),
+    box(2.0, 0.8, 2.0, 0x9a4a3a, 0, 3.0),   // tier 2 roof
+    box(1.4, 0.7, 1.4, 0xb59a6a, 0, 3.6),
+    cone(1.3, 1.0, 0x8a3a2e, 0, 4.6, 0, 4),
+    box(1.4, 1.6, 0.2, 0x2a2018, 0, 0.8, 2.05),
+    banner(team, 5.2, 1.6, 1.6),
+    banner(team, 5.2, -1.6, -1.6),
+  ),
+  temple: (team) => group(
+    box(2.0, 1.0, 1.6, 0xe0d6c0, 0, 0.5),
+    box(2.4, 0.5, 2.0, 0x9a4a3a, 0, 1.3),
+    box(1.4, 0.6, 1.2, 0xe0d6c0, 0, 1.85),
+    cone(1.2, 0.8, 0x8a3a2e, 0, 2.55, 0, 4),
+    banner(team, 2.4, 1.0, 0.7),
+  ),
+  fireworkFoundry: (team) => group(
+    box(2.6, 1.1, 2.2, DARKWOOD, 0, 0.55),
+    box(2.8, 0.5, 2.4, 0x9a4a3a, 0, 1.35),
+    cylinder(0.09, 0.09, 1.2, 0xc23b2e, 0.8, 1.0, 0.6, 5),
+    cylinder(0.09, 0.09, 1.2, 0xc23b2e, 1.0, 1.0, 0.3, 5),
+    banner(team, 2.2, -1.0, 0.8),
+  ),
+  bambooWatchpost: (team) => group(
+    cylinder(0.09, 0.09, 2.6, 0x8a9a4a, -0.4, 1.3, -0.4, 5),
+    cylinder(0.09, 0.09, 2.6, 0x8a9a4a, 0.4, 1.3, -0.4, 5),
+    cylinder(0.09, 0.09, 2.6, 0x8a9a4a, -0.4, 1.3, 0.4, 5),
+    cylinder(0.09, 0.09, 2.6, 0x8a9a4a, 0.4, 1.3, 0.4, 5),
+    box(1.3, 0.35, 1.3, WOOD, 0, 2.75),
+    cone(1.0, 0.7, THATCH, 0, 3.4, 0, 4),
+    banner(team, 3.4, 0.4, 0.4),
+  ),
+  imperialAcademy: (team) => group(
+    box(2.4, 1.2, 2.0, 0xe0d6c0, 0, 0.6),
+    box(2.7, 0.5, 2.3, 0x9a4a3a, 0, 1.45),
+    box(1.6, 0.7, 1.4, 0xe0d6c0, 0, 2.0),
+    box(1.9, 0.4, 1.7, 0x8a3a2e, 0, 2.55),
+    banner(team, 2.8, 1.1, 0.8),
+  ),
+  // --- African ---
+  keepAfrican: (team) => group(
+    cylinder(2.2, 2.5, 2.2, 0xb08350, 0, 1.1, 0, 8),      // great mudbrick roundhouse
+    cone(2.5, 1.6, 0x8a6a3a, 0, 3.0, 0, 8),               // thatch crown
+    cylinder(0.6, 0.7, 2.8, 0xb08350, -2.0, 1.4, -1.4, 6),
+    cone(0.85, 0.8, 0x8a6a3a, -2.0, 3.2, -1.4, 6),
+    cylinder(0.6, 0.7, 2.8, 0xb08350, 2.0, 1.4, 1.4, 6),
+    cone(0.85, 0.8, 0x8a6a3a, 2.0, 3.2, 1.4, 6),
+    box(1.2, 1.4, 0.6, 0x8a5a30, 0, 0.7, 2.2),
+    sphereGold(0, 3.9, 0),
+    banner(team, 4.4, 1.4, -1.4),
+  ),
+  drumCircle: (team) => {
+    const g = group(cylinder(1.6, 1.7, 0.25, 0xb08350, 0, 0.12, 0, 8));
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2;
+      g.add(cylinder(0.28, 0.34, 0.55, 0x8a4b26, Math.cos(a) * 1.0, 0.4, Math.sin(a) * 1.0, 7));
+      g.add(cylinder(0.3, 0.3, 0.06, 0xe8d9b0, Math.cos(a) * 1.0, 0.7, Math.sin(a) * 1.0, 7));
+    }
+    g.add(banner(team, 2.4, 0, 0));
+    return g;
+  },
+  herdingGrounds: (team) => group(
+    box(1.6, 0.7, 1.2, 0xb08350, -0.6, 0.35, -0.6),
+    cone(1.3, 0.7, 0x8a6a3a, -0.6, 1.05, -0.6, 5),
+    // Pen fence
+    box(2.2, 0.3, 0.08, DARKWOOD, 0.4, 0.3, 0.9),
+    box(0.08, 0.3, 1.6, DARKWOOD, 1.4, 0.3, 0.2),
+    box(0.5, 0.4, 0.3, 0xd8cba8, 0.7, 0.2, 0.3), // goat
+    banner(team, 1.8, -1.2, 0.5),
+  ),
+  warriorLodge: (team) => group(
+    box(2.4, 1.0, 1.9, 0xb08350, 0, 0.5),
+    cone(1.9, 1.1, 0x8a6a3a, 0, 1.9, 0, 4),
+    box(0.1, 1.4, 0.1, DARKWOOD, 1.0, 0.7, 1.0),
+    cone(0.09, 0.3, 0xc8d0da, 1.0, 1.55, 1.0, 4), // spear rack
+    banner(team, 2.2, -1.0, 0.8),
+  ),
+  sunfireYard: (team) => group(
+    box(2.6, 1.0, 2.2, 0xb08350, 0, 0.5),
+    box(2.8, 0.4, 2.4, 0x8a5a30, 0, 1.2),
+    cylinder(0.3, 0.4, 0.5, 0x3a3f45, 0.8, 0.25, 0.8, 7),
+    box(0.4, 0.3, 0.4, 0xe8722a, 0.8, 0.6, 0.8), // fire glow
+    banner(team, 2.0, -1.1, -0.8),
+  ),
+  // --- Middle Eastern ---
+  keepMiddleEastern: (team) => group(
+    box(4.0, 2.2, 4.0, 0xd8c9a0, 0, 1.1),
+    box(4.3, 0.4, 4.3, 0xc0af88, 0, 2.4),
+    sphereDome(0, 3.1, 0, 1.4, 0x2e8a5c),
+    cylinder(0.35, 0.42, 4.6, 0xd8c9a0, -1.9, 2.3, -1.9, 6), // minaret
+    sphereDome(-1.9, 4.8, -1.9, 0.5, 0x2e8a5c),
+    cylinder(0.35, 0.42, 4.6, 0xd8c9a0, 1.9, 2.3, 1.9, 6),
+    sphereDome(1.9, 4.8, 1.9, 0.5, 0x2e8a5c),
+    box(1.3, 1.6, 0.3, 0x6a4a26, 0, 0.8, 2.05),
+    banner(team, 5.4, 1.9, -1.9),
+  ),
+  bazaar: (team) => group(
+    box(2.6, 0.2, 2.6, 0xd8c9a0, 0, 0.1),
+    box(0.12, 1.2, 0.12, DARKWOOD, -1.1, 0.7, -1.1),
+    box(0.12, 1.2, 0.12, DARKWOOD, 1.1, 0.7, -1.1),
+    box(0.12, 1.2, 0.12, DARKWOOD, -1.1, 0.7, 1.1),
+    box(0.12, 1.2, 0.12, DARKWOOD, 1.1, 0.7, 1.1),
+    box(2.9, 0.14, 2.9, team, 0, 1.4),
+    sphereDome(0, 1.7, 0, 0.55, 0x2e8a5c),
+    box(0.6, 0.5, 0.6, 0xc2a45a, -0.5, 0.45, 0.4),
+    box(0.5, 0.4, 0.5, 0x9a4a3a, 0.55, 0.4, -0.4),
+    box(0.4, 0.35, 0.4, 0x3d6f9a, 0.4, 0.37, 0.6),
+  ),
+  caravanserai: (team) => group(
+    box(2.8, 1.1, 2.4, 0xd8c9a0, 0, 0.55),
+    box(1.6, 1.0, 0.3, 0xd8c9a0, 0, 1.6, 1.05),
+    sphereDome(0, 2.3, 1.05, 0.5, 0x2e8a5c),
+    box(1.2, 0.9, 0.2, 0x6a4a26, 0, 0.45, 1.25), // arched gate
+    box(0.7, 0.4, 0.4, 0xc9a55a, 0.9, 0.2, -0.6), // resting camel
+    banner(team, 2.6, -1.2, -1.0),
+  ),
+  fireOilFoundry: (team) => group(
+    box(2.6, 1.0, 2.2, 0xd8c9a0, 0, 0.5),
+    cylinder(0.4, 0.5, 1.2, 0x3a3f45, 0.7, 1.6, 0.6, 7),
+    box(0.5, 0.4, 0.5, 0xe8722a, -0.6, 0.3, 0.7),
+    sphereDome(-0.5, 1.3, -0.5, 0.6, 0xc0af88),
+    banner(team, 2.0, 1.1, -0.8),
+  ),
+  domeTower: (team) => group(
+    cylinder(0.7, 0.9, 3.0, 0xd8c9a0, 0, 1.5, 0, 8),
+    cylinder(0.95, 0.95, 0.4, 0xc0af88, 0, 3.2, 0, 8),
+    sphereDome(0, 3.7, 0, 0.8, 0x2e8a5c),
+    banner(team, 4.2, 0.6, 0.6),
   ),
   cathedral: (team) => group(
     box(1.4, 1.6, 1.4, 0xe8e2d4, 0, 0.8),

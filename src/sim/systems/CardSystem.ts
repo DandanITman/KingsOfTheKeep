@@ -1,6 +1,6 @@
 import { dist } from '@/core/mathUtils';
 import type { Vec2 } from '@/core/mathUtils';
-import { BUILDING_REFUND_FRACTION, MARKET_TRADE_RATE, TICK_RATE } from '@/data/balance';
+import { BUILDING_REFUND_FRACTION, MARKET_TRADE_RATE, MORALE_BASE, TICK_RATE } from '@/data/balance';
 import { getBuilding } from '@/data/buildings';
 import { getCard } from '@/data/cards';
 import { getUnit } from '@/data/units';
@@ -9,7 +9,7 @@ import type { BuildingDef, Card } from '@/data/types';
 import type { Command, PlayerId } from '../commands';
 import type { MatchSim } from '../MatchSim';
 import type { MatchState } from '../MatchState';
-import { Building } from '../entities/Entity';
+import { Building, Unit } from '../entities/Entity';
 import { registerCommandHandler } from './CommandSystem';
 import { tryQueueUnit } from './TrainingSystem';
 import { castAbility } from './AbilitySystem';
@@ -76,7 +76,11 @@ export function cardAvailability(state: MatchState, player: PlayerId, card: Card
   if (card.unitId) {
     const def = getUnit(card.unitId);
     if (p.commandUsed + def.commandCost > p.commandCap) return 'Not enough command';
-    if (def.trainedAt) {
+    if (card.type === 'hero') {
+      const alive = state.units.some((u) => !u.dead && u.player === player && u.defId === card.unitId);
+      if (alive) return 'Hero is in the field';
+    }
+    if (card.type !== 'hero' && def.trainedAt) {
       const trainer = state.buildings.find(
         (b) => !b.dead && b.complete && b.player === player && b.def.trainKey === def.trainedAt,
       );
@@ -223,6 +227,19 @@ function playCard(sim: MatchSim, cmd: Command & { kind: 'playCard' }): void {
 
     // Send nearby idle/gathering workers to build it (up to 3).
     autoAssignBuilders(s, cmd.player, building);
+  } else if (card.type === 'hero' && card.unitId) {
+    // Heroes muster instantly at the fortress gates.
+    const def = getUnit(card.unitId);
+    const fortress = s.fortressOf(cmd.player);
+    if (!fortress) return;
+    if (!s.payCost(cmd.player, def.cost)) return;
+    const pos = s.nav.nearestFree({ x: fortress.pos.x, y: fortress.pos.y + fortress.def.footprint[1] / 2 + 1.5 });
+    const unit = new Unit(cmd.player, pos, def, MORALE_BASE);
+    s.addUnit(unit);
+    sim.recomputeCommand();
+    s.bus.emit('unitSpawned', { entityId: unit.id, unitId: def.id, player: cmd.player, pos: unit.pos });
+    s.bus.emit('alert', { kind: 'heroReturned', message: `${def.name} has taken the field!`, pos: unit.pos, player: cmd.player });
+    s.bus.emit('cardPlayed', { cardId: card.id, player: cmd.player });
   } else if (card.unitId) {
     const def = getUnit(card.unitId);
     // Find the least-busy completed trainer building.

@@ -55,6 +55,17 @@ export function killUnit(state: MatchState, unit: Unit): void {
   if (unit.dead) return;
   unit.dead = true;
   const p = state.players[unit.player];
+  // Fallen heroes recharge their card before they can be summoned again.
+  if (unit.def.hero) {
+    const slot = p.cards.find((c) => c.cardId === `card_${unit.defId}`);
+    if (slot) slot.cooldownTicks = unit.def.hero.respawnSecs * TICK_RATE;
+    state.bus.emit('alert', {
+      kind: 'heroFallen',
+      message: `${unit.def.name} has fallen! They will return in ${unit.def.hero.respawnSecs}s.`,
+      pos: unit.pos,
+      player: unit.player,
+    });
+  }
   p.recentDeaths.push({ pos: { ...unit.pos }, expiresTick: state.tick + MORALE_DEATH_MEMORY_SECS * TICK_RATE });
   if (p.recentDeaths.length > 40) p.recentDeaths.shift();
   state.enemyOf(unit.player).score += unit.def.commandCost * 10;

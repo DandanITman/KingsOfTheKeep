@@ -1,7 +1,17 @@
 import type { UnitDef } from '../types';
 import { EUROPEAN_UNITS } from './european';
+import { ASIAN_UNITS } from './asian';
+import { AFRICAN_UNITS } from './african';
+import { MIDDLE_EASTERN_UNITS } from './middleEastern';
+import { NEUTRAL_UNITS } from './neutral';
 
-const ALL_UNITS: UnitDef[] = [...EUROPEAN_UNITS];
+const ALL_UNITS: UnitDef[] = [
+  ...EUROPEAN_UNITS,
+  ...ASIAN_UNITS,
+  ...AFRICAN_UNITS,
+  ...MIDDLE_EASTERN_UNITS,
+  ...NEUTRAL_UNITS,
+];
 
 export const UNIT_DB = new Map<string, UnitDef>(ALL_UNITS.map((u) => [u.id, u]));
 

@@ -1,10 +1,21 @@
 import type { Card, FactionId } from '../types';
 import { UNIVERSAL_CARDS } from './universal';
 import { EUROPEAN_CARDS } from './european';
+import { ASIAN_CARDS } from './asian';
+import { AFRICAN_CARDS } from './african';
+import { MIDDLE_EASTERN_CARDS } from './middleEastern';
+import { NEUTRAL_CARDS } from './neutral';
 import { UNIT_DB } from '../units';
 import { BUILDING_DB } from '../buildings';
 
-const ALL_CARDS: Card[] = [...UNIVERSAL_CARDS, ...EUROPEAN_CARDS];
+const ALL_CARDS: Card[] = [
+  ...UNIVERSAL_CARDS,
+  ...EUROPEAN_CARDS,
+  ...ASIAN_CARDS,
+  ...AFRICAN_CARDS,
+  ...MIDDLE_EASTERN_CARDS,
+  ...NEUTRAL_CARDS,
+];
 
 export const CARD_DB = new Map<string, Card>();
 

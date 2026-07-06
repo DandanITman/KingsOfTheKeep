@@ -34,6 +34,7 @@ import { victorySystem } from './systems/VictorySystem';
 import { macroCommandSystem } from './systems/MacroCommandSystem';
 import { registerFlagHandlers } from './systems/FlagSystem';
 import { moraleSystem } from './systems/MoraleSystem';
+import { supportSystem } from './systems/SupportSystem';
 
 registerCardHandlers();
 registerFlagHandlers();
@@ -180,6 +181,7 @@ export class MatchSim {
     combatSystem(s);
     projectileSystem(s);
     moraleSystem(s);
+    supportSystem(s);
     economySystem(s);
     effectsSystem(s);
     pruneUnitBuffs(s);
