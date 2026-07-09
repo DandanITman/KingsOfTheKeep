@@ -20,8 +20,8 @@ const BIOME_SKY: Record<Biome, BiomeSky> = {
     fogColor: 0xaec6d4,
     ambient: 0xbcccdc,
     groundBounce: 0x4f5a3c,
-    sun: 0xffeecb,
-    sunIntensity: 1.5,
+    sun: 0xffe7b5,
+    sunIntensity: 1.62,
   },
   desert: {
     zenith: 0x6f9ecb,
@@ -78,7 +78,7 @@ export class Renderer {
     this.renderer.setPixelRatio(pixelRatio);
     // Filmic tone mapping keeps the saturated low-poly palette from clipping.
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.18;
+    this.renderer.toneMappingExposure = 1.24;
 
     const palette = BIOME_SKY[biome];
     this.scene = new THREE.Scene();

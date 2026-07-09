@@ -128,15 +128,44 @@
 .res {
   display: flex;
   align-items: center;
-  gap: 6px;
-  min-width: 76px;
+  gap: 7px;
+  min-width: 86px;
   font-variant-numeric: tabular-nums;
   color: var(--stone);
 }
 
+/* Gold hairline dividers between resource segments, like the reference bar. */
+.res + .res {
+  border-left: 1px solid rgba(216, 159, 48, 0.28);
+  padding-left: 12px;
+}
+
 .res .icon {
-  font-size: 18px;
+  font-size: 20px;
   filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.75));
+}
+
+.res-col {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+
+.res-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--parchment);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+.res-rate {
+  font-size: 10px;
+  color: #a9c983;
+  min-height: 12px;
+}
+
+.res.low .res-value {
+  color: #ffb1a4;
 }
 
 .res .icon svg,
@@ -170,6 +199,8 @@
 
 .hud-difficulty {
   color: var(--muted) !important;
+  font-size: 11px;
+  letter-spacing: 1px;
 }
 
 .hud-top .btn.small {
@@ -184,13 +215,15 @@
   bottom: var(--hud-edge);
   width: var(--minimap-size);
   height: var(--minimap-size);
-  border: 1px solid var(--hud-gold-line);
+  border: 2px solid var(--hud-gold-line);
   border-radius: 8px;
   background: #050b10;
   cursor: crosshair;
   box-shadow:
-    inset 0 0 0 2px rgba(0, 0, 0, 0.68),
-    0 0 0 1px rgba(255, 232, 154, 0.08),
+    inset 0 0 0 2px rgba(0, 0, 0, 0.78),
+    inset 0 0 0 3px rgba(255, 218, 112, 0.14),
+    0 0 0 1px rgba(0, 0, 0, 0.8),
+    0 0 0 2px rgba(255, 232, 154, 0.12),
     0 14px 26px rgba(0, 0, 0, 0.56);
 }
 
@@ -393,6 +426,51 @@
   pointer-events: none;
 }
 
+/* Selection panel header: serif gold title + big HP bar, reference-style. */
+.sel-title {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--gold);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+  margin-bottom: 2px;
+}
+
+.sel-hp {
+  margin: 2px 0 6px;
+}
+
+.sel-hp-text {
+  font-size: 14px;
+  color: var(--parchment);
+  font-variant-numeric: tabular-nums;
+}
+
+.sel-hp-bar {
+  height: 9px;
+  margin-top: 4px;
+  border: 1px solid rgba(0, 0, 0, 0.85);
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.6);
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.8),
+    0 0 0 1px rgba(255, 232, 154, 0.14);
+  overflow: hidden;
+}
+
+.sel-hp-fill {
+  height: 100%;
+  background: linear-gradient(180deg, #8fe05a, #4d9328);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.35);
+  transition: width 0.2s;
+}
+
+.sel-hp-fill.low {
+  background: linear-gradient(180deg, #e0705a, #a03a22);
+}
+
 /* Selection panel production tiles */
 .sel-section {
   font-size: 10px;
@@ -571,7 +649,8 @@
   display: block;
   width: 100%;
   max-width: 100%;
-  font-size: 10px;
+  font-size: 9px;
+  letter-spacing: -0.2px;
   line-height: 1.05;
   color: var(--stone);
   text-align: center;
@@ -891,6 +970,18 @@
 
   .res {
     min-width: 58px;
+  }
+
+  .res + .res {
+    padding-left: 8px;
+  }
+
+  .res-rate {
+    display: none;
+  }
+
+  .res-value {
+    font-size: 13px;
   }
 
   .hud-difficulty {

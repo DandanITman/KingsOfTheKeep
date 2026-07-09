@@ -135,8 +135,8 @@ export class SelectionPanel {
 
     if (units.length === 1) {
       const u = units[0];
-      this.root.append(el('div', { html: `<b style="color:var(--gold)">${u.def.name}</b>` }));
-      this.hpEl = el('div');
+      this.root.append(el('div', { className: 'sel-title', text: u.def.name }));
+      this.hpEl = el('div', { className: 'sel-hp' });
       this.root.append(this.hpEl);
       this.root.append(
         el('div', {
@@ -155,8 +155,8 @@ export class SelectionPanel {
 
     if (buildings.length >= 1) {
       const b = buildings[0];
-      this.root.append(el('div', { html: `<b style="color:var(--gold)">${b.def.name}</b>` }));
-      this.hpEl = el('div');
+      this.root.append(el('div', { className: 'sel-title', text: b.def.name }));
+      this.hpEl = el('div', { className: 'sel-hp' });
       this.root.append(this.hpEl);
 
       if (b.underConstruction) {
@@ -290,7 +290,10 @@ export class SelectionPanel {
       const sel = this.getSelection();
       const first = this.state.entities.get([...sel][0]);
       if (first && !first.dead) {
-        this.hpEl.innerHTML = `${icon('health')} ${Math.ceil(first.hp)} / ${first.maxHp}`;
+        const pct = Math.max(0, Math.min(100, (first.hp / first.maxHp) * 100));
+        this.hpEl.innerHTML =
+          `<span class="sel-hp-text">${icon('health')} ${Math.ceil(first.hp)} / ${first.maxHp}</span>` +
+          `<div class="sel-hp-bar"><div class="sel-hp-fill${pct < 35 ? ' low' : ''}" style="width:${pct}%"></div></div>`;
       }
     }
     if (b) {

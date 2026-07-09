@@ -259,9 +259,17 @@ export class MatchState {
     }
   }
 
+  /**
+   * Cumulative gross income per player/resource (spending excluded). The HUD
+   * samples this over a rolling window to show "+N /min" rates.
+   */
+  incomeTally: Partial<Record<Resource, number>>[] = [];
+
   addResource(player: PlayerId, resource: Resource, amount: number): void {
     this.players[player].resources[resource] += amount;
     this.players[player].score += amount * 0.01;
+    const tally = (this.incomeTally[player] ??= {});
+    tally[resource] = (tally[resource] ?? 0) + amount;
   }
 
   fortressOf(player: PlayerId): Building | null {

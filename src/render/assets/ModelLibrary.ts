@@ -12,6 +12,7 @@
 
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 
 export interface AssetEntry {
   id: string;
@@ -315,7 +316,26 @@ const RESOURCE_NODE_TO_MODEL: Record<string, Partial<Record<string, string>>> = 
 let manifest: Manifest | null = null;
 let manifestPromise: Promise<Manifest | null> | null = null;
 const loader = new GLTFLoader();
-const modelCache = new Map<string, Promise<THREE.Group | null>>();
+
+interface CachedModel {
+  scene: THREE.Group;
+  clips: THREE.AnimationClip[];
+  skinned: boolean;
+}
+const modelCache = new Map<string, Promise<CachedModel | null>>();
+
+/**
+ * Donor clip sources for models that ship a skeleton but no animation clips
+ * (several Quaternius packs share the same `CharacterArmature` rig). Clips are
+ * borrowed from a fully-animated sibling and filtered to the bones that
+ * actually exist on the target — a poor match simply stays unanimated.
+ */
+const HUMANOID_CLIP_DONORS = [
+  'european_serf_worker',
+  'asian_village_worker',
+  'middle_eastern_town_worker',
+  'african_hearth_worker',
+];
 
 export function glbModelsEnabled(): boolean {
   try {
@@ -439,14 +459,62 @@ function pickVariant(clone: THREE.Object3D, index: number): void {
   keep.position.set(0, 0, 0);
 }
 
-export async function loadModelById(
-  id: string,
-  opts: { teamColor?: number; fitSize?: number; variantIndex?: number } = {},
-): Promise<THREE.Group | null> {
-  await loadManifest();
-  const entry = getEntry(id);
-  if (!entry || entry.status !== 'imported' || !entry.runtimePath) return null;
+/**
+ * World-space bounds for fitting. Skinned packs often ship near-zero-scale
+ * bind geometry with the true size baked into the bone bind matrices, so
+ * plain geometry bounds are garbage — use the precise (per-vertex, skeleton
+ * aware) path for those.
+ */
+function measureBounds(root: THREE.Object3D, skinned: boolean): THREE.Box3 {
+  root.updateMatrixWorld(true);
+  if (skinned) {
+    root.traverse((o) => {
+      const sm = o as THREE.SkinnedMesh;
+      if (sm.isSkinnedMesh) sm.skeleton.update();
+    });
+  }
+  return new THREE.Box3().setFromObject(root, skinned);
+}
 
+function hasSkinnedMesh(root: THREE.Object3D): boolean {
+  let found = false;
+  root.traverse((o) => {
+    if ((o as THREE.SkinnedMesh).isSkinnedMesh) found = true;
+  });
+  return found;
+}
+
+/** True when a clip is a usable loop (some packs export junk camera/pose actions). */
+function usableClips(clips: THREE.AnimationClip[]): THREE.AnimationClip[] {
+  return clips.filter((c) => c.duration > 0.1 && c.tracks.length > 0);
+}
+
+/**
+ * Borrow clips from a donor model, keeping only tracks whose target node
+ * exists on `target`. Returns [] when the skeletons clearly don't match.
+ */
+function retargetClips(clips: THREE.AnimationClip[], target: THREE.Object3D): THREE.AnimationClip[] {
+  const names = new Set<string>();
+  target.traverse((o) => {
+    if (o.name) names.add(o.name);
+  });
+  const out: THREE.AnimationClip[] = [];
+  for (const clip of clips) {
+    const tracks = clip.tracks.filter((t) => {
+      const node = t.name.split('.')[0];
+      return names.has(node);
+    });
+    // Require most of the clip to bind, otherwise it plays as broken half-poses.
+    if (tracks.length >= clip.tracks.length * 0.5 && tracks.length > 3) {
+      out.push(new THREE.AnimationClip(clip.name, clip.duration, tracks));
+    }
+  }
+  return out;
+}
+
+function fetchModel(id: string): Promise<CachedModel | null> {
+  const entry = getEntry(id);
+  if (!entry || entry.status !== 'imported' || !entry.runtimePath) return Promise.resolve(null);
   if (!modelCache.has(id)) {
     const url = entry.runtimePath.replace(/^public/, '');
     modelCache.set(
@@ -455,18 +523,51 @@ export async function loadModelById(
         .loadAsync(url)
         .then((gltf) => {
           neutralizeMetalness(gltf.scene);
-          return gltf.scene;
+          return {
+            scene: gltf.scene,
+            clips: usableClips(gltf.animations ?? []),
+            skinned: hasSkinnedMesh(gltf.scene),
+          };
         })
         .catch(() => null),
     );
   }
-  const base = await modelCache.get(id)!;
+  return modelCache.get(id)!;
+}
+
+/** Donor clips shared by the common humanoid rig, for skinned-but-clipless models. */
+async function donorClips(): Promise<THREE.AnimationClip[]> {
+  for (const donorId of HUMANOID_CLIP_DONORS) {
+    const donor = await fetchModel(donorId);
+    if (donor && donor.clips.length > 0) return donor.clips;
+  }
+  return [];
+}
+
+export async function loadModelById(
+  id: string,
+  opts: { teamColor?: number; fitSize?: number; variantIndex?: number } = {},
+): Promise<THREE.Group | null> {
+  await loadManifest();
+  const entry = getEntry(id);
+  if (!entry || entry.status !== 'imported' || !entry.runtimePath) return null;
+
+  const base = await fetchModel(id);
   if (!base) return null;
 
   const entryScale = entry.scale || 1;
-  const clone = base.clone(true) as unknown as THREE.Group;
+  // SkinnedMesh trees must be cloned with their skeleton bindings intact.
+  const clone = (base.skinned ? cloneSkinned(base.scene) : base.scene.clone(true)) as THREE.Group;
   if (entry.variantPick) pickVariant(clone, opts.variantIndex ?? 0);
   cloneMaterials(clone);
+
+  // Animation clips ride along on userData so callers can drive an
+  // AnimationMixer. Rigged models with no shipped clips borrow the shared
+  // humanoid set when the bone names line up.
+  let clips = base.clips;
+  if (base.skinned && clips.length === 0) {
+    clips = retargetClips(await donorClips(), clone);
+  }
   const group = new THREE.Group();
   group.add(clone);
 
@@ -474,13 +575,13 @@ export async function loadModelById(
   clone.rotation.y = entry.rotation || 0;
 
   if (opts.fitSize) {
-    const box = new THREE.Box3().setFromObject(clone);
+    const box = measureBounds(clone, base.skinned);
     const size = new THREE.Vector3();
     box.getSize(size);
     const largest = Math.max(size.x, size.z);
     if (largest > 1e-4) clone.scale.multiplyScalar(opts.fitSize / largest);
     // Re-ground after fitting so the base sits at y=0.
-    const fitted = new THREE.Box3().setFromObject(clone);
+    const fitted = measureBounds(clone, base.skinned);
     clone.position.y -= fitted.min.y;
     clone.position.x -= (fitted.min.x + fitted.max.x) / 2;
     clone.position.z -= (fitted.min.z + fitted.max.z) / 2;
@@ -491,7 +592,11 @@ export async function loadModelById(
   group.traverse((o) => {
     o.castShadow = true;
     o.receiveShadow = true;
+    // Skinned bounds are bind-pose only; never let animation cull the mesh.
+    if ((o as THREE.SkinnedMesh).isSkinnedMesh) o.frustumCulled = false;
   });
+  group.userData.clips = clips;
+  group.userData.skinned = base.skinned;
   return group;
 }
 

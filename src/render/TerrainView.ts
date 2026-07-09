@@ -26,6 +26,64 @@ const BIOME_GROUND: Record<Biome, BiomeGround> = {
   mountain: { low: 0x67705c, base: 0x7d8471, high: 0x99a08c, accent: 0x8b9382, grassTuft: 0x74895c, tuftCount: 350, flower: null, pebble: 0x8b8b85 },
 };
 
+/**
+ * Procedural ground detail texture: fine grain + short blade strokes drawn to
+ * a canvas, tiled across the map and multiplied under the vertex colors. Adds
+ * the close-up texture the flat vertex-colored plane lacks.
+ */
+function makeGroundDetailTexture(seed: number, blades: boolean): THREE.Texture {
+  const size = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+  const rng = new Rng(seed ^ 0x9e3779b9);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, size, size);
+
+  // Broad soft mottling.
+  for (let i = 0; i < 260; i++) {
+    const r = 8 + rng.next() * 26;
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, r);
+    const dark = rng.chance(0.55);
+    g.addColorStop(0, dark ? 'rgba(52,64,38,0.10)' : 'rgba(255,252,225,0.09)');
+    g.addColorStop(1, 'rgba(128,128,128,0)');
+    ctx.save();
+    ctx.translate(rng.next() * size, rng.next() * size);
+    ctx.fillStyle = g;
+    ctx.fillRect(-r, -r, r * 2, r * 2);
+    ctx.restore();
+  }
+  // Fine grain speckle.
+  for (let i = 0; i < 5200; i++) {
+    const v = rng.chance(0.5);
+    ctx.fillStyle = v ? 'rgba(30,40,22,0.10)' : 'rgba(255,255,235,0.08)';
+    ctx.fillRect(rng.next() * size, rng.next() * size, 1 + rng.next() * 1.6, 1 + rng.next() * 1.6);
+  }
+  // Short blade strokes (grass-like biomes only).
+  if (blades) {
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 2400; i++) {
+      const x = rng.next() * size;
+      const y = rng.next() * size;
+      const len = 2 + rng.next() * 4;
+      const lean = (rng.next() - 0.5) * 2.2;
+      ctx.strokeStyle = rng.chance(0.5) ? 'rgba(38,54,26,0.14)' : 'rgba(214,232,160,0.12)';
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + lean, y - len);
+      ctx.stroke();
+    }
+  }
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  return tex;
+}
+
 /** Cheap deterministic 2D value noise (two octaves), used for ground tinting. */
 function makeNoise(seed: number): (x: number, y: number) => number {
   const hash = (ix: number, iy: number): number => {
@@ -96,7 +154,9 @@ export class TerrainView {
     }
     geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     geo.computeVertexNormals();
-    const ground = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true }));
+    const detail = makeGroundDetailTexture(map.terrain.seed, map.terrain.biome === 'grass' || map.terrain.biome === 'savanna');
+    detail.repeat.set(w / 9, h / 9);
+    const ground = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true, map: detail }));
     ground.receiveShadow = true;
     this.root.add(ground);
 

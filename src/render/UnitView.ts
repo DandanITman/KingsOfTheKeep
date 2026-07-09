@@ -6,7 +6,7 @@ import { getArchetypeGeometry } from './meshes/unitMeshes';
 import { glbModelsEnabled, loadModelForUnit, modelIdForUnit } from './assets/ModelLibrary';
 
 const MAX_INSTANCES = 400;
-const MAX_IMPORTED_UNITS = 80;
+const MAX_IMPORTED_UNITS = 120;
 
 interface ArchetypePool {
   body: THREE.InstancedMesh | null;
@@ -15,10 +15,47 @@ interface ArchetypePool {
   pivot: { x: number; y: number; z: number };
 }
 
+/** Semantic animation states derived from the sim task. */
+type ClipRole = 'idle' | 'walk' | 'attack' | 'shoot' | 'work';
+
+/**
+ * Clip-name patterns per role, tried in order (matched case-insensitively
+ * against the clip name with any `Armature|` prefix stripped). Covers the
+ * Quaternius humanoid rig (Idle/Walk/Run/Sword_Slash/Interact/Gun_Shoot) and
+ * the animal rig (Idle/Walk/Gallop/Attack_Headbutt).
+ */
+const CLIP_ROLE_PATTERNS: Record<ClipRole, string[]> = {
+  idle: ['idle_neutral', 'idle'],
+  walk: ['walk', 'run', 'gallop'],
+  attack: ['sword_slash', 'attack_headbutt', 'attack_kick', 'punch_left', 'attack'],
+  shoot: ['gun_shoot', 'shoot', 'sword_slash', 'attack'],
+  work: ['interact', 'sword_slash', 'punch_left', 'attack'],
+};
+
+/** Cavalry reads better galloping than walking at RTS move speeds. */
+const GALLOP_MESHES = new Set(['lightCavalry', 'cavalry', 'knight', 'paladin', 'horseArcher', 'camelRider', 'camelArcher']);
+
 interface ImportedUnit {
   modelId: string;
   model: THREE.Group | null;
   baseY: number;
+  mixer: THREE.AnimationMixer | null;
+  clips: THREE.AnimationClip[];
+  actions: Partial<Record<ClipRole, THREE.AnimationAction | null>>;
+  active: ClipRole | null;
+}
+
+/** Best clip for a semantic role, matched by normalized name, or null. */
+function findRoleClip(clips: THREE.AnimationClip[], role: ClipRole, meshKey: string): THREE.AnimationClip | null {
+  const patterns =
+    role === 'walk' && GALLOP_MESHES.has(meshKey) ? ['gallop', 'run', 'walk'] : CLIP_ROLE_PATTERNS[role];
+  const norm = (name: string) => name.slice(name.indexOf('|') + 1).toLowerCase();
+  for (const pat of patterns) {
+    const clip =
+      clips.find((c) => norm(c.name) === pat) ?? clips.find((c) => norm(c.name).startsWith(pat));
+    if (clip) return clip;
+  }
+  return null;
 }
 
 const bodyMaterial = new THREE.MeshLambertMaterial({ vertexColors: true });
@@ -125,6 +162,7 @@ export class UnitView {
   /** Per-frame list of visible unit ids (set by fog logic; null = all). */
   visibleFilter: ((unit: Unit) => boolean) | null = null;
   private useImportedModels = glbModelsEnabled();
+  private lastTimeMs = 0;
 
   constructor(state: MatchState) {
     this.state = state;
@@ -166,7 +204,7 @@ export class UnitView {
 
     if (!imported) {
       if (this.importedUnits.size >= MAX_IMPORTED_UNITS) return null;
-      imported = { modelId, model: null, baseY: 0 };
+      imported = { modelId, model: null, baseY: 0, mixer: null, clips: [], actions: {}, active: null };
       this.importedUnits.set(unit.id, imported);
       loadModelForUnit(unit.def.id, unit.def.mesh, unit.def.faction, {
         teamColor: teamColor.getHex(),
@@ -185,6 +223,17 @@ export class UnitView {
           }
           current.model = model;
           current.baseY = model.position.y;
+          // Yaw first, then local pitch/roll for the procedural gait of
+          // unrigged models.
+          model.rotation.order = 'YXZ';
+          // Only drive a mixer when the core locomotion roles resolve —
+          // models with junk/partial clip sets keep the procedural gait.
+          const clips = (model.userData.clips as THREE.AnimationClip[] | undefined) ?? [];
+          const meshKey = unit.def.mesh;
+          if (clips.length > 0 && (findRoleClip(clips, 'walk', meshKey) || findRoleClip(clips, 'idle', meshKey))) {
+            current.clips = clips;
+            current.mixer = new THREE.AnimationMixer(model);
+          }
           model.visible = false;
           this.importedRoot.add(model);
         })
@@ -197,7 +246,42 @@ export class UnitView {
     return imported.model ? imported : null;
   }
 
+  /** Find (and cache) the AnimationAction for a semantic role, or null. */
+  private actionFor(imp: ImportedUnit, role: ClipRole, meshKey: string): THREE.AnimationAction | null {
+    if (role in imp.actions) return imp.actions[role] ?? null;
+    const clip = findRoleClip(imp.clips, role, meshKey);
+    const action = clip && imp.mixer ? imp.mixer.clipAction(clip) : null;
+    imp.actions[role] = action;
+    return action;
+  }
+
+  /** Crossfade the unit's skeletal animation to `role`. */
+  private playRole(imp: ImportedUnit, role: ClipRole, unit: Unit): void {
+    if (imp.active === role || !imp.mixer) return;
+    const next = this.actionFor(imp, role, unit.def.mesh);
+    if (!next) return;
+    const prev = imp.active ? imp.actions[imp.active] : null;
+    // Desync identical units and roughly match attack loops to the sim's
+    // attack period so strikes read as deliberate rather than frantic.
+    const clip = next.getClip();
+    if (role === 'attack' || role === 'shoot') {
+      const period = Math.max(0.4, unit.def.attackPeriodSecs);
+      next.timeScale = Math.min(2.2, Math.max(0.6, clip.duration / period));
+    } else if (role === 'walk') {
+      next.timeScale = 1.15;
+    } else {
+      next.timeScale = 0.9 + (unit.id % 5) * 0.05;
+    }
+    next.reset();
+    next.time = ((unit.id * 0.37) % 1) * clip.duration;
+    next.fadeIn(0.16).play();
+    if (prev && prev !== next) prev.fadeOut(0.16);
+    imp.active = role;
+  }
+
   update(alpha: number, timeMs: number): void {
+    const dt = this.lastTimeMs === 0 ? 0.016 : Math.min(0.1, (timeMs - this.lastTimeMs) / 1000);
+    this.lastTimeMs = timeMs;
     // Reset counts.
     const counts = new Map<string, number>();
     const seen = new Set<number>();
@@ -236,9 +320,38 @@ export class UnitView {
       const teamColor = this.teamColors[unit.player] ?? this.teamColors[0];
       const importedReady = this.importedUnitFor(unit, teamColor);
       if (importedReady?.model) {
-        importedReady.model.visible = true;
-        importedReady.model.position.set(x, y + importedReady.baseY, z);
-        importedReady.model.rotation.set(0, -unit.facing, 0);
+        const model = importedReady.model;
+        model.visible = true;
+        if (importedReady.mixer) {
+          // Skeletal animation: pick the semantic state and let the clip do
+          // the moving — no procedural bob on top.
+          const task = unit.task;
+          const role: ClipRole = moving
+            ? 'walk'
+            : task.kind === 'fight' || unit.garrisonedIn !== null
+              ? unit.def.range > 0.9
+                ? 'shoot'
+                : 'attack'
+              : (task.kind === 'gather' && task.phase === 'gathering') || task.kind === 'build' || task.kind === 'repair'
+                ? 'work'
+                : 'idle';
+          this.playRole(importedReady, role, unit);
+          importedReady.mixer.update(dt);
+          const groundY = unit.garrisonedIn !== null ? y : 0;
+          model.position.set(x, groundY + importedReady.baseY, z);
+          model.rotation.set(0, -unit.facing, 0);
+        } else {
+          // Unrigged model: procedural gait — walk bob + roll, chop/strike
+          // pitch from the task animation.
+          model.position.set(x, y + importedReady.baseY, z);
+          model.rotation.set(
+            -anim.swing * 0.12,
+            -unit.facing,
+            moving ? Math.sin(timeMs * 0.008 + unit.id * 1.7) * 0.05 : 0,
+          );
+        }
+        // The GLB replaces the procedural placeholder entirely.
+        continue;
       }
 
       const pool = this.pool(meshKey);
