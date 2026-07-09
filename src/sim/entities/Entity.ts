@@ -61,6 +61,8 @@ export class Unit extends Entity {
   macroTargetFlagId: EntityId | null = null;
   /** Guard post entity id for defenders. */
   guardPostId: EntityId | null = null;
+  /** Building this unit is garrisoned inside/on top of (fortress archers). */
+  garrisonedIn: EntityId | null = null;
   /** Ticks until removal for temporary (ability-summoned) units. */
   temporaryTicks: number | null = null;
   /** Steering velocity smoothing. */
@@ -103,10 +105,18 @@ export class Building extends Entity {
   underConstruction: boolean;
   trainQueue: TrainQueueItem[] = [];
   research: ResearchItem | null = null;
+  /** Sticky unit id: the queue keeps topping itself up with this unit. */
+  autoTrainUnitId: string | null = null;
   rallyPoint: Vec2 | null = null;
   attackCooldown = 0;
   /** Cached placement efficiency for economy buildings (0.5/0.75/1). */
   efficiency = 1;
+  /** Upgrade level for levelable buildings (houses); 1 = base. */
+  level = 1;
+  /** Extra command cap granted by building levels (on top of def.commandProvided). */
+  bonusCommand = 0;
+  /** Tier-4 fortress ballista fires on its own cooldown. */
+  ballistaCooldown = 0;
   /** Origin cell of the footprint (top-left) on the nav grid. */
   cell: { x: number; y: number };
 

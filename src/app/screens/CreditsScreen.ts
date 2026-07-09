@@ -2,8 +2,8 @@ import { el, button } from '@/ui/components/dom';
 import type { Screen, ScreenManager } from '../ScreenManager';
 
 export function createCreditsScreen(screens: ScreenManager): Screen {
-  const root = el('div');
-  root.style.cssText = 'background:#060504;overflow:hidden;';
+  const root = el('div', { className: 'royal-screen' });
+  root.style.cssText = 'overflow:hidden;';
 
   // Castle silhouette
   const castle = el('div');
@@ -31,11 +31,11 @@ export function createCreditsScreen(screens: ScreenManager): Screen {
     'position:absolute;width:100%;text-align:center;font-family:Georgia,serif;animation:creditsScroll 36s linear infinite;';
   scroll.innerHTML = `
     <div style="font-size:44px;color:var(--gold);letter-spacing:4px;margin-bottom:60px;">KINGS OF THE KEEP</div>
-    <div style="font-size:15px;color:#a89468;margin-bottom:8px;">Game Director</div>
+    <div style="font-size:15px;color:var(--muted);margin-bottom:8px;">Game Director</div>
     <div style="font-size:30px;color:var(--parchment);margin-bottom:60px;">Dan the Man</div>
-    <div style="font-size:15px;color:#a89468;margin-bottom:8px;">A Production Of</div>
+    <div style="font-size:15px;color:var(--muted);margin-bottom:8px;">A Production Of</div>
     <div style="font-size:26px;color:#e8a33d;margin-bottom:60px;">Cherry Buddha</div>
-    <div style="font-size:15px;color:#a89468;margin-bottom:8px;">Built With</div>
+    <div style="font-size:15px;color:var(--muted);margin-bottom:8px;">Built With</div>
     <div style="font-size:20px;color:var(--parchment);margin-bottom:80px;">TypeScript · Three.js · Vite</div>
     <div style="font-size:18px;color:#776;">Thank you for playing.</div>`;
 

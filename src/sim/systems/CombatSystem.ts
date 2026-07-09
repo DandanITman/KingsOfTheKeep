@@ -1,6 +1,7 @@
 import { dist } from '@/core/mathUtils';
 import {
   COUNTER_TABLE,
+  FORTRESS_BALLISTA,
   MORALE_MIN_MULT,
   PROJECTILE_SPEED,
   RETALIATE_LEASH,
@@ -53,6 +54,7 @@ function isRanged(unit: Unit): boolean {
 
 /** Find the best enemy target for a unit within `radius`. */
 export function acquireTarget(state: MatchState, unit: Unit, radius: number): Entity | null {
+  const attacking = unit.assignment === 'attack';
   let best: Entity | null = null;
   let bestScore = -Infinity;
   state.unitHash.query(unit.pos, radius, scratch);
@@ -70,14 +72,18 @@ export function acquireTarget(state: MatchState, unit: Unit, radius: number): En
       best = other;
     }
   }
-  // Buildings: siege actively prefers them; others only if nothing else.
-  const buildingBias = unit.def.role === 'siege' && !unit.def.tags.includes('defensive') ? 25 : -8;
+  // Buildings: siege actively prefers them; attackers raze whatever is on the
+  // way (camps, towers, houses) before the enemy fortress; defenders mostly
+  // ignore buildings unless nothing else is around.
+  const buildingBias = unit.def.role === 'siege' && !unit.def.tags.includes('defensive') ? 25 : attacking ? -1.5 : -8;
   state.buildingHash.query(unit.pos, radius, scratch);
   for (const id of scratch) {
     const b = state.building(id);
     if (!b || b.player === unit.player || b.player < 0) continue;
     const d = dist(unit.pos, b.pos);
-    const score = -d + buildingBias;
+    let score = -d + buildingBias;
+    // The main castle comes last: clear its supporting structures first.
+    if (attacking && b.def.kind === 'fortress') score -= 7;
     if (score > bestScore) {
       bestScore = score;
       best = b;
@@ -104,6 +110,11 @@ export function combatSystem(state: MatchState): void {
         const target = acquireTarget(state, unit, unit.def.los);
         if (target) unit.task = { kind: 'fight', targetId: target.id, returnTo: { ...unit.pos } };
       } else if (task.kind === 'move' && task.attackMove) {
+        const target = acquireTarget(state, unit, unit.def.los);
+        if (target) unit.task = { kind: 'fight', targetId: target.id, returnTo: { ...task.dest } };
+      } else if (task.kind === 'macroMove' && unit.assignment === 'attack') {
+        // Marching armies engage whatever crosses their path — workers,
+        // defenders, towers — instead of beelining to the destination.
         const target = acquireTarget(state, unit, unit.def.los);
         if (target) unit.task = { kind: 'fight', targetId: target.id, returnTo: { ...task.dest } };
       }
@@ -168,42 +179,72 @@ export function combatSystem(state: MatchState): void {
   // Static defenses: towers and fortresses fire on nearby enemies.
   for (const b of state.buildings) {
     if (b.dead || !b.complete || !b.def.attack || b.player < 0) continue;
-    if (b.attackCooldown > 0) {
-      b.attackCooldown -= TICK_SECS;
-      continue;
-    }
+    if (b.attackCooldown > 0) b.attackCooldown -= TICK_SECS;
+    if (b.ballistaCooldown > 0) b.ballistaCooldown -= TICK_SECS;
+
     const attack = b.def.attack;
-    let target: Unit | null = null;
-    let bestD = Infinity;
-    state.unitHash.query(b.pos, attack.range, scratch);
-    for (const id of scratch) {
-      const u = state.unit(id);
-      if (!u || u.player === b.player || u.player < 0) continue;
-      const d = dist(b.pos, u.pos);
-      if (d < bestD) {
-        bestD = d;
-        target = u;
+    if (b.attackCooldown <= 0) {
+      const target = nearestEnemyUnit(state, b.pos, b.player, attack.range);
+      if (target) {
+        b.attackCooldown = attack.periodSecs;
+        const dmg = buildingStat(state, b, attack.damage, 'attackDamage');
+        state.addProjectile(
+          new Projectile({
+            player: b.player,
+            pos: { x: b.pos.x, y: b.pos.y },
+            targetId: target.id,
+            targetPos: { ...target.pos },
+            speed: PROJECTILE_SPEED,
+            damage: dmg,
+            pierce: attack.pierce ?? true,
+            splash: 0,
+            bonusVsBuildings: 0,
+            arc: 'flat',
+          }),
+        );
       }
     }
-    if (target) {
-      b.attackCooldown = attack.periodSecs;
-      const dmg = buildingStat(state, b, attack.damage, 'attackDamage');
-      state.addProjectile(
-        new Projectile({
-          player: b.player,
-          pos: { x: b.pos.x, y: b.pos.y },
-          targetId: target.id,
-          targetPos: { ...target.pos },
-          speed: PROJECTILE_SPEED,
-          damage: dmg,
-          pierce: attack.pierce ?? true,
-          splash: 0,
-          bonusVsBuildings: 0,
-          arc: 'flat',
-        }),
-      );
+
+    // Tier-4 fortresses mount a rooftop ballista for extra defensive shots.
+    if (b.def.kind === 'fortress' && state.players[b.player].tier >= 4 && b.ballistaCooldown <= 0) {
+      const target = nearestEnemyUnit(state, b.pos, b.player, FORTRESS_BALLISTA.range);
+      if (target) {
+        b.ballistaCooldown = FORTRESS_BALLISTA.periodSecs;
+        const dmg = buildingStat(state, b, FORTRESS_BALLISTA.damage, 'attackDamage');
+        state.addProjectile(
+          new Projectile({
+            player: b.player,
+            pos: { x: b.pos.x, y: b.pos.y },
+            targetId: target.id,
+            targetPos: { ...target.pos },
+            speed: SIEGE_PROJECTILE_SPEED,
+            damage: dmg,
+            pierce: true,
+            splash: FORTRESS_BALLISTA.splash,
+            bonusVsBuildings: 0,
+            arc: 'lob',
+          }),
+        );
+      }
     }
   }
+}
+
+/** Nearest living enemy unit within range of a point. */
+function nearestEnemyUnit(state: MatchState, pos: { x: number; y: number }, player: number, range: number): Unit | null {
+  let target: Unit | null = null;
+  let bestD = Infinity;
+  state.unitHash.query(pos, range, scratch);
+  for (const id of scratch) {
+    const u = state.unit(id);
+    if (!u || u.player === player || u.player < 0) continue;
+    const d = dist(pos, u.pos);
+    if (d < bestD) {
+      bestD = d;
+      target = u;
+    }
+  }
+  return target;
 }
 
 function performAttack(state: MatchState, attacker: Unit, target: Entity): void {

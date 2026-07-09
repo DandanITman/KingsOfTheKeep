@@ -45,11 +45,13 @@ export function registerFlagHandlers(): void {
     switch (cmd.action) {
       case 'fullAssault': {
         p.stanceAttack = true;
+        p.stanceDefend = false;
         p.fullAssaultUntilTick = s.tick + EMERGENCY_FULL_ASSAULT_SECS * TICK_RATE;
         break;
       }
       case 'holdKeep': {
         p.stanceAttack = false;
+        p.stanceDefend = true;
         p.fullAssaultUntilTick = null;
         if (!fortress) break;
         for (const u of s.units) {
@@ -110,6 +112,8 @@ export function registerFlagHandlers(): void {
         break;
       }
       case 'retreat': {
+        p.stanceAttack = false;
+        p.stanceDefend = true;
         p.fullAssaultUntilTick = null;
         if (!fortress) break;
         for (const u of s.units) {
@@ -121,6 +125,23 @@ export function registerFlagHandlers(): void {
           }
         }
         p.attackFlagIndex = 0;
+        break;
+      }
+      case 'stop': {
+        p.stanceAttack = false;
+        p.stanceDefend = true;
+        p.fullAssaultUntilTick = null;
+        p.attackFlagIndex = 0;
+        for (const u of s.units) {
+          if (u.dead || u.player !== cmd.player || u.def.role === 'worker') continue;
+          if (u.task.kind === 'rout' || u.task.kind === 'garrison' || u.task.kind === 'trade') continue;
+          u.assignment = 'defend';
+          u.guardPostId = null;
+          u.macroTargetFlagId = null;
+          if (u.task.kind === 'macroMove' || u.task.kind === 'move' || u.task.kind === 'fight') {
+            u.task = { kind: 'idle' };
+          }
+        }
         break;
       }
     }

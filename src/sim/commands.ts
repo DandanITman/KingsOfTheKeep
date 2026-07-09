@@ -19,7 +19,8 @@ export type EmergencyAction =
   | 'protectWorkers'
   | 'rallyArmy'
   | 'repairWalls'
-  | 'retreat';
+  | 'retreat'
+  | 'stop';
 
 export type Command =
   | { kind: 'playCard'; player: PlayerId; cardId: string; target?: Vec2; rotation?: number }
@@ -30,6 +31,7 @@ export type Command =
   | { kind: 'setAllocation'; player: PlayerId; mode: Stance; alloc: Partial<Record<UnitRole, number>> }
   | { kind: 'setWorkerRatios'; player: PlayerId; ratios: Record<GatherResource, number> }
   | { kind: 'trainUnit'; player: PlayerId; buildingId: EntityId; unitId: string }
+  | { kind: 'setAutoTrain'; player: PlayerId; buildingId: EntityId; unitId: string | null }
   | { kind: 'cancelTrain'; player: PlayerId; buildingId: EntityId; queueIndex: number }
   | { kind: 'startUpgrade'; player: PlayerId; buildingId: EntityId; upgradeId: string }
   | { kind: 'emergency'; player: PlayerId; action: EmergencyAction }
@@ -38,4 +40,7 @@ export type Command =
   | { kind: 'directBuild'; player: PlayerId; unitIds: EntityId[]; buildingId: EntityId }
   | { kind: 'marketTrade'; player: PlayerId; sell: GatherResource; buy: GatherResource; amount: number }
   | { kind: 'setRally'; player: PlayerId; buildingId: EntityId; pos: Vec2 }
+  | { kind: 'garrisonRanged'; player: PlayerId; buildingId: EntityId; count?: number }
+  | { kind: 'ungarrison'; player: PlayerId; buildingId: EntityId }
+  | { kind: 'upgradeHouse'; player: PlayerId; buildingId: EntityId }
   | { kind: 'concede'; player: PlayerId };

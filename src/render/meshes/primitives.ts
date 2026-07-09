@@ -66,9 +66,11 @@ export function group(...children: THREE.Object3D[]): THREE.Group {
   return g;
 }
 
-/** Team-colored banner on a pole. */
+/** Team-colored banner on a pole. The cloth is tagged so views can flutter it. */
 export function banner(teamColor: number, height = 1.6, x = 0, z = 0): THREE.Group {
   const pole = cylinder(0.03, 0.03, height, 0x5a4426, x, height / 2, z, 4);
   const cloth = box(0.04, 0.35, 0.5, teamColor, x, height - 0.25, z + 0.28);
+  cloth.userData.bannerCloth = true;
+  cloth.userData.flutterPhase = Math.random() * Math.PI * 2;
   return group(pole, cloth);
 }

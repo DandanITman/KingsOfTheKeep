@@ -1,5 +1,5 @@
 import { dist, type Vec2 } from '@/core/mathUtils';
-import { TICK_RATE } from '@/data/balance';
+import { FORTRESS_GARRISON_SLOTS, TICK_RATE } from '@/data/balance';
 import { getBuilding } from '@/data/buildings';
 import { getCard } from '@/data/cards';
 import { getUnit } from '@/data/units';
@@ -50,6 +50,7 @@ export class BotController {
     this.planTier(s);
     this.planUpgrades(s);
     this.planArmy(s);
+    this.planGarrison(s);
     this.planAttack(s);
     if (this.profile.raids) this.planRaids(s);
     if (this.profile.useAbilities) this.planAbilities(s);
@@ -65,6 +66,22 @@ export class BotController {
     const target = this.profile.workerTarget(s.timeSecs / 60);
     if (workers < target) {
       this.sim.enqueue({ kind: 'trainUnit', player: BOT, buildingId: fortress.id, unitId: p.faction.workerUnitId });
+    }
+  }
+
+  /** Keep the castle walls manned with a few archers once tier 2 unlocks it. */
+  private planGarrison(s: MatchState): void {
+    const p = s.players[BOT];
+    const fortress = s.fortressOf(BOT);
+    if (!fortress) return;
+    const slots = FORTRESS_GARRISON_SLOTS[p.tier] ?? 0;
+    if (slots === 0) return;
+    const manned = s.units.filter((u) => !u.dead && u.garrisonedIn === fortress.id).length;
+    // Only spare a portion of the ranged force for wall duty.
+    const ranged = s.units.filter((u) => !u.dead && u.player === BOT && u.def.role === 'ranged').length;
+    const want = Math.min(slots, Math.floor(ranged / 3));
+    if (manned < want) {
+      this.sim.enqueue({ kind: 'garrisonRanged', player: BOT, buildingId: fortress.id, count: want - manned });
     }
   }
 

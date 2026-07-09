@@ -83,24 +83,28 @@ export class CameraRig {
 
   update(dt: number, camera: THREE.PerspectiveCamera): void {
     const speed = 32 * this.display.cameraSpeed * (this.zoom / 42) * dt;
+    // Screen-relative pan: right = +mx, up (away from camera) = +mf.
     let mx = 0;
-    let mz = 0;
-    if (this.keys.has('KeyW') || this.keys.has('ArrowUp')) mz -= 1;
-    if (this.keys.has('KeyS') || this.keys.has('ArrowDown')) mz += 1;
+    let mf = 0;
+    if (this.keys.has('KeyW') || this.keys.has('ArrowUp')) mf += 1;
+    if (this.keys.has('KeyS') || this.keys.has('ArrowDown')) mf -= 1;
     if (this.keys.has('KeyA') || this.keys.has('ArrowLeft')) mx -= 1;
     if (this.keys.has('KeyD') || this.keys.has('ArrowRight')) mx += 1;
     if (this.display.edgeScroll) {
       mx += this.mouseOnEdge.x;
-      mz += this.mouseOnEdge.y;
+      mf -= this.mouseOnEdge.y;
     }
     if (this.keys.has('KeyQ')) this.yaw += 1.6 * dt;
     if (this.keys.has('KeyE')) this.yaw -= 1.6 * dt;
 
-    if (mx !== 0 || mz !== 0) {
+    if (mx !== 0 || mf !== 0) {
+      // Camera looks from target - (sin(yaw), cos(yaw)) * horiz toward the
+      // target, so the ground-plane view direction is (sin(yaw), cos(yaw))
+      // and screen-right is its perpendicular (-cos(yaw), sin(yaw)).
       const cos = Math.cos(this.yaw);
       const sin = Math.sin(this.yaw);
-      this.target.x += (mx * cos - mz * sin) * speed;
-      this.target.z += (mx * sin + mz * cos) * speed;
+      this.target.x += (mf * sin - mx * cos) * speed;
+      this.target.z += (mf * cos + mx * sin) * speed;
     }
     this.target.x = clamp(this.target.x, 4, this.bounds.w - 4);
     this.target.z = clamp(this.target.z, 4, this.bounds.h - 4);

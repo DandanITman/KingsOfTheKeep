@@ -29,6 +29,7 @@ import { effectsSystem } from './systems/AbilitySystem';
 import { pruneUnitBuffs } from './systems/statHelpers';
 import { registerCardHandlers } from './systems/CardSystem';
 import { combatSystem } from './systems/CombatSystem';
+import { garrisonSystem } from './systems/GarrisonSystem';
 import { projectileSystem } from './systems/ProjectileSystem';
 import { victorySystem } from './systems/VictorySystem';
 import { macroCommandSystem } from './systems/MacroCommandSystem';
@@ -129,7 +130,9 @@ export class MatchSim {
       let cap = STARTING_COMMAND_CAP;
       let used = 0;
       for (const b of this.state.buildings) {
-        if (b.player === p.id && b.complete && b.def.commandProvided) cap += b.def.commandProvided;
+        if (b.player !== p.id || !b.complete) continue;
+        if (b.def.commandProvided) cap += b.def.commandProvided;
+        cap += b.bonusCommand;
       }
       for (const u of this.state.units) {
         if (u.player === p.id && !u.dead) used += u.def.commandCost;
@@ -183,6 +186,7 @@ export class MatchSim {
     constructionSystem(s, this.recompute);
     trainingSystem(s, this.recompute);
     combatSystem(s);
+    garrisonSystem(s);
     projectileSystem(s);
     moraleSystem(s);
     supportSystem(s);

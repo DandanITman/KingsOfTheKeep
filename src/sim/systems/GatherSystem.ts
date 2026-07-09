@@ -101,6 +101,8 @@ export function gatherSystem(state: MatchState): void {
         retarget(state, unit);
         continue;
       }
+      // Face the node so the work animation points at it.
+      unit.facing = Math.atan2(node.pos.y - unit.pos.y, node.pos.x - unit.pos.x);
       task.timer -= TICK_SECS;
       if (task.timer <= 0) {
         const take = Math.min(carryAmount(state, unit), node.amount);

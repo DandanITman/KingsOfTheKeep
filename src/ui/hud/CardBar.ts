@@ -1,20 +1,12 @@
 import { el } from '@/ui/components/dom';
 import { icon } from '@/ui/icons';
 import { getCard } from '@/data/cards';
-import { getBuilding } from '@/data/buildings';
-import { getUnit } from '@/data/units';
-import type { Card, Cost } from '@/data/types';
+import type { Card } from '@/data/types';
 import type { MatchState } from '@/sim/MatchState';
 import { cardAvailability } from '@/sim/systems/CardSystem';
-
-const COST_ICONS: Record<string, string> = { food: '🍖', wood: '🪵', stone: '🪨', gold: '🪙', influence: '✨' };
-
-function costText(cost: Cost): string {
-  return Object.entries(cost)
-    .filter(([, v]) => (v ?? 0) > 0)
-    .map(([k, v]) => `${COST_ICONS[k] ?? k}${v}`)
-    .join(' ');
-}
+import { ageLabel, cardCost, costText, RARITY_COLORS } from '@/ui/cards/CardFace';
+import { attachCardHover } from '@/ui/cards/CardHover';
+import { buildCardModel, spinnerHub } from '@/ui/cards/cardModels';
 
 export type CardClickHandler = (card: Card) => void;
 
@@ -26,6 +18,7 @@ export class CardBar {
   readonly root: HTMLElement;
   private state: MatchState;
   private tiles = new Map<string, { tile: HTMLElement; cdOverlay: HTMLElement; reason: HTMLElement }>();
+  private disposers: (() => void)[] = [];
   selectedCardId: string | null = null;
 
   constructor(state: MatchState, onClick: CardClickHandler) {
@@ -39,18 +32,34 @@ export class CardBar {
       }
       if (card.type === 'fortress') continue;
 
-      const cost = card.unitId ? getUnit(card.unitId).cost : card.buildingId ? getBuilding(card.buildingId).cost : card.cost ?? {};
-      const tile = el('div', { className: 'card-tile', title: `${card.name} — ${card.description}` });
+      const tile = el('div', { className: 'card-tile' });
+      tile.style.setProperty('--rarity', RARITY_COLORS[card.rarity] ?? '#a8a8a8');
       const cdOverlay = el('div', { className: 'card-cd' });
       const reason = el('div', { className: 'card-reason' });
+      const art = el('div', { className: 'card-art-window' });
+      const model = buildCardModel(card);
+      if (model) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 220;
+        canvas.height = 150;
+        canvas.className = 'card-art-canvas';
+        art.append(canvas);
+        this.disposers.push(spinnerHub.register(canvas, model, { speed: 0.34, bob: card.unitId !== undefined }));
+      } else {
+        art.append(el('div', { className: 'card-icon', html: icon(card.icon) }));
+      }
+      art.append(el('div', { className: 'card-age-badge', text: ageLabel(card).replace('Age ', '') }));
       tile.append(
-        el('div', { className: 'card-icon', text: icon(card.icon) }),
+        el('div', { className: 'card-rarity-strip' }),
+        art,
         el('div', { className: 'card-name', text: card.name }),
-        el('div', { className: 'card-cost', text: costText(cost) }),
+        el('div', { className: 'card-cost', html: costText(cardCost(card)) }),
         cdOverlay,
         reason,
       );
       tile.addEventListener('click', () => onClick(card));
+      // Linger on a card to inspect the full detail card (3D model + stats).
+      attachCardHover(tile, () => card);
       this.tiles.set(card.id, { tile, cdOverlay, reason });
       this.root.append(tile);
     }
@@ -80,5 +89,10 @@ export class CardBar {
       }
       entry.reason.textContent = error && !error.includes('resources') ? error : '';
     }
+  }
+
+  dispose(): void {
+    for (const dispose of this.disposers) dispose();
+    this.disposers = [];
   }
 }

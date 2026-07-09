@@ -64,7 +64,13 @@ export class OverlayCanvas {
       if (selected) {
         const ground = this.project(x, 0.05, z);
         if (ground.visible) {
-          ctx.strokeStyle = '#e8d9b0';
+          // Double ring reads as a proper selection decal.
+          ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.ellipse(ground.sx, ground.sy, 14, 7, 0, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.strokeStyle = u.player === 0 ? '#f0d688' : '#e07a6a';
           ctx.lineWidth = 1.5;
           ctx.beginPath();
           ctx.ellipse(ground.sx, ground.sy, 14, 7, 0, 0, Math.PI * 2);
@@ -73,14 +79,18 @@ export class OverlayCanvas {
       }
 
       if (showBar) {
-        const p = this.project(x, 1.9, z);
+        // Wall-mounted archers carry their bar above the battlements.
+        const barH = u.garrisonedIn !== null ? 4.4 : 1.9;
+        const p = this.project(x, barH, z);
         if (!p.visible) continue;
         const frac = Math.max(0, u.hp / u.maxHp);
         const bw = 22;
-        ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.fillRect(p.sx - bw / 2, p.sy, bw, 4);
+        ctx.fillStyle = 'rgba(10,8,4,0.75)';
+        ctx.fillRect(p.sx - bw / 2 - 1, p.sy - 1, bw + 2, 6);
         ctx.fillStyle = u.player === 0 ? (frac > 0.5 ? '#5ad45a' : frac > 0.25 ? '#e8c84a' : '#e85a4a') : '#e05a4a';
         ctx.fillRect(p.sx - bw / 2, p.sy, bw * frac, 4);
+        ctx.fillStyle = 'rgba(255,255,255,0.22)';
+        ctx.fillRect(p.sx - bw / 2, p.sy, bw * frac, 1.5);
       }
     }
 
@@ -99,10 +109,12 @@ export class OverlayCanvas {
         ctx.strokeRect(p.sx - bw / 2 - 2, p.sy - 2, bw + 4, 9);
       }
       const frac = b.underConstruction ? b.progress : Math.max(0, b.hp / b.maxHp);
-      ctx.fillStyle = 'rgba(0,0,0,0.6)';
-      ctx.fillRect(p.sx - bw / 2, p.sy, bw, 5);
+      ctx.fillStyle = 'rgba(10,8,4,0.75)';
+      ctx.fillRect(p.sx - bw / 2 - 1, p.sy - 1, bw + 2, 7);
       ctx.fillStyle = b.underConstruction ? '#4a9ae8' : b.player === 0 ? '#5ad45a' : '#e05a4a';
       ctx.fillRect(p.sx - bw / 2, p.sy, bw * frac, 5);
+      ctx.fillStyle = 'rgba(255,255,255,0.22)';
+      ctx.fillRect(p.sx - bw / 2, p.sy, bw * frac, 1.5);
     }
 
     // Drag-select rectangle.

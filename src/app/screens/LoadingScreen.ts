@@ -6,12 +6,11 @@ import type { Screen, ScreenManager } from '../ScreenManager';
 
 /** Brief themed loading screen; hands the MatchSetup to the match screen. */
 export function createLoadingScreen(screens: ScreenManager): Screen {
-  const root = el('div');
-  root.style.background = '#0c0a08';
+  const root = el('div', { className: 'royal-screen' });
 
   const title = el('div', { className: 'screen-title', text: '' });
   const tip = el('div');
-  tip.style.cssText = 'color:#a89468;font-style:italic;max-width:440px;text-align:center;';
+  tip.style.cssText = 'color:var(--muted);font-style:italic;max-width:440px;text-align:center;';
   const bar = el('div');
   bar.style.cssText =
     'width:320px;height:8px;border:1px solid var(--border);border-radius:4px;margin-top:28px;overflow:hidden;';

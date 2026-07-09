@@ -1,14 +1,20 @@
 import { el } from '@/ui/components/dom';
 import { icon } from '@/ui/icons';
+import { FORTRESS_GARRISON_SLOTS, HOUSE_UPGRADES } from '@/data/balance';
 import { getUnit, UNIT_DB } from '@/data/units';
 import { UPGRADE_DB } from '@/data/upgrades';
+import { CARD_DB, getCard } from '@/data/cards';
+import type { UnitDef, UpgradeDef } from '@/data/types';
 import type { MatchState } from '@/sim/MatchState';
 import { Building, Unit } from '@/sim/entities/Entity';
 import type { MatchSim } from '@/sim/MatchSim';
+import { costText } from '@/ui/cards/CardFace';
+import { attachCardHover } from '@/ui/cards/CardHover';
 
 /**
  * Bottom-left panel describing the current selection. For a selected
- * production building it offers train buttons, queue display, and research.
+ * production building it offers train buttons (right-click = auto-queue),
+ * queue display, market trading, and research with costs.
  */
 export class SelectionPanel {
   readonly root: HTMLElement;
@@ -36,8 +42,11 @@ export class SelectionPanel {
     }
 
     const first = this.state.entities.get([...sel][0]);
-    // Rebuild only when the selection identity changes; refresh dynamic bits every frame.
-    const key = [...sel].sort((a, b) => a - b).join(',');
+    // Rebuild only when the selection identity changes; refresh dynamic bits
+    // every frame. House level and player tier are part of the key so the
+    // panel re-renders after upgrades.
+    let key = [...sel].sort((a, b) => a - b).join(',');
+    if (first instanceof Building) key += `:${first.level}:${this.state.players[0].tier}`;
     if (key !== this.lastKey) {
       this.lastKey = key;
       this.rebuild(sel);
@@ -47,12 +56,65 @@ export class SelectionPanel {
 
   private queueEl: HTMLElement | null = null;
   private hpEl: HTMLElement | null = null;
+  private garrisonEl: HTMLElement | null = null;
+  private trainBtns = new Map<string, HTMLElement>();
+  private hoverDisposers: (() => void)[] = [];
+
+  /** Rich production tile: icon, name, cost, time; hover shows the full card. */
+  private trainButton(def: UnitDef, b: Building): HTMLElement {
+    const btn = el('button', { className: 'train-btn' });
+    btn.append(
+      el('span', { className: 'train-ico', html: icon(getCardIcon(def)) }),
+      el('span', { className: 'train-name', text: def.name }),
+      el('span', { className: 'train-cost', html: `${costText(def.cost)} &middot; ${def.trainSecs}s` }),
+      el('span', { className: 'train-auto-tag', text: 'auto' }),
+    );
+    btn.title = 'Left-click: train once · Right-click: toggle auto-train';
+    btn.addEventListener('click', () =>
+      this.sim.enqueue({ kind: 'trainUnit', player: 0, buildingId: b.id, unitId: def.id }),
+    );
+    btn.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const next = b.autoTrainUnitId === def.id ? null : def.id;
+      this.sim.enqueue({ kind: 'setAutoTrain', player: 0, buildingId: b.id, unitId: next });
+    });
+    const cardId = `card_${def.id}`;
+    if (CARD_DB.has(cardId)) {
+      this.hoverDisposers.push(attachCardHover(btn, () => getCard(cardId)));
+    }
+    this.trainBtns.set(def.id, btn);
+    return btn;
+  }
+
+  /** Research tile with explicit cost + time. */
+  private researchButton(up: UpgradeDef, b: Building, primary: boolean): HTMLElement {
+    const btn = el('button', { className: `train-btn research${primary ? ' primary' : ''}` });
+    btn.append(
+      el('span', { className: 'train-ico', html: icon(up.icon) }),
+      el('span', { className: 'train-name', text: up.name }),
+      el('span', { className: 'train-cost', html: `${costText(up.cost) || 'Free'} &middot; ${up.researchSecs}s` }),
+    );
+    btn.title = up.description;
+    btn.addEventListener('click', () =>
+      this.sim.enqueue({ kind: 'startUpgrade', player: 0, buildingId: b.id, upgradeId: up.id }),
+    );
+    return btn;
+  }
+
+  private sectionLabel(text: string): HTMLElement {
+    return el('div', { className: 'sel-section', text });
+  }
 
   private rebuild(sel: Set<number>): void {
+    this.hoverDisposers.forEach((d) => d());
+    this.hoverDisposers = [];
+    this.trainBtns.clear();
     this.root.innerHTML = '';
     this.root.style.display = '';
     this.queueEl = null;
     this.hpEl = null;
+    this.garrisonEl = null;
 
     const entities = [...sel].map((id) => this.state.entities.get(id)).filter((e) => e && !e.dead);
     const units = entities.filter((e): e is Unit => e instanceof Unit);
@@ -78,11 +140,15 @@ export class SelectionPanel {
       this.root.append(this.hpEl);
       this.root.append(
         el('div', {
-          text: `⚔ ${u.def.damage}  🛡 ${u.def.armor}/${u.def.pierceArmor}  👟 ${u.def.speed}  🎯 ${u.def.range > 0.9 ? u.def.range : 'melee'}`,
+          html: `${icon('sword')} ${u.def.damage}  ${icon('shield')} ${u.def.armor}/${u.def.pierceArmor}  ${icon('boots')} ${u.def.speed}  ${icon('range')} ${u.def.range > 0.9 ? u.def.range : 'melee'}`,
         }),
       );
       if (u.def.role !== 'worker') {
         this.root.append(el('div', { text: `Stance: ${u.assignment}` }));
+      }
+      const cardId = `card_${u.defId}`;
+      if (CARD_DB.has(cardId)) {
+        this.hoverDisposers.push(attachCardHover(this.root, () => getCard(cardId), { delayMs: 700 }));
       }
       return;
     }
@@ -100,8 +166,7 @@ export class SelectionPanel {
 
       // Train buttons.
       if (b.def.trainKey && b.player === 0) {
-        const trainRow = el('div');
-        trainRow.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;';
+        const trainRow = el('div', { className: 'train-grid' });
         const faction = this.state.players[0].faction.id;
         for (const def of UNIT_DB.values()) {
           if (def.trainedAt !== b.def.trainKey) continue;
@@ -109,16 +174,13 @@ export class SelectionPanel {
           // Only units whose card is in the player's deck are trainable.
           const inDeck = this.state.players[0].cards.some((c) => c.cardId === `card_${def.id}`);
           if (!inDeck) continue;
-          const btn = el('button', { className: 'btn small', text: `${def.name}`, title: `${def.trainSecs}s` });
-          btn.style.cssText += 'font-size:11px;padding:3px 8px;min-width:0;';
-          btn.addEventListener('click', () =>
-            this.sim.enqueue({ kind: 'trainUnit', player: 0, buildingId: b.id, unitId: def.id }),
-          );
-          trainRow.append(btn);
+          trainRow.append(this.trainButton(def, b));
         }
-        if (trainRow.children.length > 0) this.root.append(trainRow);
+        if (trainRow.children.length > 0) {
+          this.root.append(this.sectionLabel('Train — right-click for auto'), trainRow);
+        }
         this.queueEl = el('div');
-        this.queueEl.style.cssText = 'margin-top:4px;font-size:12px;color:#a89468;cursor:pointer;';
+        this.queueEl.style.cssText = 'margin-top:4px;font-size:12px;color:var(--muted);cursor:pointer;min-height:15px;';
         this.queueEl.title = 'Click to cancel the first queued unit';
         this.queueEl.addEventListener('click', () => {
           this.sim.enqueue({ kind: 'cancelTrain', player: 0, buildingId: b.id, queueIndex: 0 });
@@ -130,16 +192,16 @@ export class SelectionPanel {
       if ((b.def.trainKey === 'market' || b.defId.includes('bazaar')) && b.player === 0) {
         const tradeWrap = el('div');
         tradeWrap.style.cssText = 'margin-top:6px;';
-        tradeWrap.append(el('div', { text: 'Trade (100 at a time):' }));
+        tradeWrap.append(this.sectionLabel('Trade (100 at a time)'));
         const sellRow = el('div');
         sellRow.style.cssText = 'display:flex;gap:4px;margin-top:3px;';
         for (const res of ['food', 'wood', 'stone'] as const) {
-          const sellBtn = el('button', { className: 'btn small', text: `${res} → 🪙`, title: `Sell 100 ${res} for gold` });
+          const sellBtn = el('button', { className: 'btn small', html: `${res} &rarr; ${icon('goldRes')}`, title: `Sell 100 ${res} for gold` });
           sellBtn.style.cssText += 'font-size:10px;padding:3px 6px;min-width:0;';
           sellBtn.addEventListener('click', () =>
             this.sim.enqueue({ kind: 'marketTrade', player: 0, sell: res, buy: 'gold', amount: 100 }),
           );
-          const buyBtn = el('button', { className: 'btn small', text: `🪙 → ${res}`, title: `Buy ${res} with 100 gold` });
+          const buyBtn = el('button', { className: 'btn small', html: `${icon('goldRes')} &rarr; ${res}`, title: `Buy ${res} with 100 gold` });
           buyBtn.style.cssText += 'font-size:10px;padding:3px 6px;min-width:0;';
           buyBtn.addEventListener('click', () =>
             this.sim.enqueue({ kind: 'marketTrade', player: 0, sell: 'gold', buy: res, amount: 100 }),
@@ -153,23 +215,60 @@ export class SelectionPanel {
       // Research buttons.
       if (b.def.researches && b.player === 0) {
         const p = this.state.players[0];
-        const row = el('div');
-        row.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;';
+        const row = el('div', { className: 'train-grid' });
         for (const upgradeId of b.def.researches) {
           const up = UPGRADE_DB.get(upgradeId);
           if (!up || p.completedUpgrades.has(upgradeId)) continue;
           if (up.tier > p.tier) continue;
-          const btn = el('button', { className: 'btn small', text: `${icon(up.icon)} ${up.name}`, title: up.description });
-          btn.style.cssText += 'font-size:11px;padding:3px 8px;min-width:0;';
-          btn.addEventListener('click', () =>
-            this.sim.enqueue({ kind: 'startUpgrade', player: 0, buildingId: b.id, upgradeId }),
-          );
-          row.append(btn);
+          row.append(this.researchButton(up, b, false));
         }
-        if (row.children.length > 0) this.root.append(row);
+        if (row.children.length > 0) this.root.append(this.sectionLabel('Research'), row);
       }
 
-      // Fortress: tier upgrades + worker training handled via researches/trainKey already.
+      // House: per-building level upgrades.
+      if (b.defId === 'house' && b.player === 0) {
+        const next = HOUSE_UPGRADES[b.level - 1];
+        if (next) {
+          const btn = el('button', { className: 'train-btn research primary' });
+          btn.append(
+            el('span', { className: 'train-ico', html: icon('houseUp') }),
+            el('span', { className: 'train-name', text: `Upgrade to ${next.name}` }),
+            el('span', { className: 'train-cost', html: `${costText(next.cost)} &middot; +${next.command} cmd, +${next.hp} hp` }),
+          );
+          btn.title = 'Bigger home: more command capacity and hit points.';
+          btn.addEventListener('click', () => this.sim.enqueue({ kind: 'upgradeHouse', player: 0, buildingId: b.id }));
+          const wrap = el('div', { className: 'train-grid' });
+          wrap.append(btn);
+          this.root.append(this.sectionLabel('Improve'), wrap);
+        } else {
+          this.root.append(el('div', { text: `Manor (max level)` }));
+        }
+      }
+
+      // Fortress: garrison archers on the walls (tier 2+).
+      if (b.def.kind === 'fortress' && b.player === 0) {
+        const slots = FORTRESS_GARRISON_SLOTS[this.state.players[0].tier] ?? 0;
+        if (slots > 0) {
+          const row = el('div');
+          row.style.cssText = 'display:flex;gap:4px;margin-top:6px;';
+          const manBtn = el('button', { className: 'btn small', html: `${icon('garrison')} Man the walls` });
+          manBtn.title = 'Nearby archers climb onto the keep and fire with bonus range';
+          manBtn.addEventListener('click', () =>
+            this.sim.enqueue({ kind: 'garrisonRanged', player: 0, buildingId: b.id }),
+          );
+          const ejectBtn = el('button', { className: 'btn small', html: `${icon('dismount')} Dismount` });
+          ejectBtn.title = 'Garrisoned archers climb back down';
+          ejectBtn.addEventListener('click', () =>
+            this.sim.enqueue({ kind: 'ungarrison', player: 0, buildingId: b.id }),
+          );
+          row.append(manBtn, ejectBtn);
+          this.garrisonEl = el('div');
+          this.garrisonEl.style.cssText = 'font-size:12px;color:var(--muted);margin-top:2px;';
+          this.root.append(this.sectionLabel('Castle Garrison'), row, this.garrisonEl);
+        }
+      }
+
+      // Fortress: next tier upgrade.
       if (b.def.tierUpgrades && b.player === 0) {
         const p = this.state.players[0];
         const next = b.def.tierUpgrades.find((id) => {
@@ -178,12 +277,9 @@ export class SelectionPanel {
         });
         if (next) {
           const up = UPGRADE_DB.get(next)!;
-          const btn = el('button', { className: 'btn small primary', text: `${icon(up.icon)} ${up.name}`, title: up.description });
-          btn.style.cssText += 'margin-top:6px;font-size:12px;';
-          btn.addEventListener('click', () =>
-            this.sim.enqueue({ kind: 'startUpgrade', player: 0, buildingId: b.id, upgradeId: next }),
-          );
-          this.root.append(btn);
+          const wrap = el('div', { className: 'train-grid' });
+          wrap.append(this.researchButton(up, b, true));
+          this.root.append(this.sectionLabel('Advance'), wrap);
         }
       }
     }
@@ -194,8 +290,19 @@ export class SelectionPanel {
       const sel = this.getSelection();
       const first = this.state.entities.get([...sel][0]);
       if (first && !first.dead) {
-        this.hpEl.textContent = `❤ ${Math.ceil(first.hp)} / ${first.maxHp}`;
+        this.hpEl.innerHTML = `${icon('health')} ${Math.ceil(first.hp)} / ${first.maxHp}`;
       }
+    }
+    if (b) {
+      // Auto-train highlight follows sim state (commands apply next tick).
+      for (const [unitId, btn] of this.trainBtns) {
+        btn.classList.toggle('auto', b.autoTrainUnitId === unitId);
+      }
+    }
+    if (this.garrisonEl && b) {
+      const slots = FORTRESS_GARRISON_SLOTS[this.state.players[0].tier] ?? 0;
+      const manned = this.state.units.filter((u) => !u.dead && u.garrisonedIn === b.id).length;
+      this.garrisonEl.textContent = `${manned}/${slots} archers on the walls`;
     }
     if (this.queueEl && b) {
       if (b.trainQueue.length > 0) {
@@ -206,9 +313,18 @@ export class SelectionPanel {
         const up = UPGRADE_DB.get(b.research.upgradeId);
         const pct = Math.round((1 - b.research.ticksRemaining / b.research.totalTicks) * 100);
         this.queueEl.textContent = `Researching: ${up?.name ?? ''} ${pct}%`;
+      } else if (b.autoTrainUnitId) {
+        this.queueEl.textContent = `Auto-training ${getUnit(b.autoTrainUnitId).name} — waiting for resources`;
       } else {
         this.queueEl.textContent = '';
       }
     }
   }
+}
+
+/** Icon key for a unit: its card icon when a card exists, else a role glyph. */
+function getCardIcon(def: UnitDef): string {
+  const cardId = `card_${def.id}`;
+  if (CARD_DB.has(cardId)) return getCard(cardId).icon;
+  return def.role === 'worker' ? 'worker' : 'sword';
 }

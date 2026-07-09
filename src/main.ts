@@ -1,5 +1,6 @@
 import '@/ui/styles/main.css';
 import '@/ui/styles/hud.css';
+import '@/ui/styles/cards.css';
 import { createMatchScreen } from '@/app/screens/MatchScreen';
 import { createDeckEditorScreen } from '@/app/screens/DeckEditorScreen';
 import { createShopScreen } from '@/app/screens/ShopScreen';

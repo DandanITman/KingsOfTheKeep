@@ -3,8 +3,7 @@ import { saveStore } from '@/core/save/SaveStore';
 import type { Screen, ScreenManager } from '../ScreenManager';
 
 export function createOptionsScreen(screens: ScreenManager): Screen {
-  const root = el('div');
-  root.style.background = 'radial-gradient(ellipse at 50% 30%, #241c10 0%, #0c0a08 70%)';
+  const root = el('div', { className: 'royal-screen' });
 
   const title = el('div', { className: 'screen-title', text: 'Options' });
 

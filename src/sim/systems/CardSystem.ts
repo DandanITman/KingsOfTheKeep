@@ -126,6 +126,14 @@ export function registerCardHandlers(): void {
     }
   });
 
+  registerCommandHandler('setAutoTrain', (sim, cmd) => {
+    if (cmd.kind !== 'setAutoTrain') return;
+    const b = sim.state.building(cmd.buildingId);
+    if (!b || b.player !== cmd.player) return;
+    if (cmd.unitId !== null && getUnit(cmd.unitId).trainedAt !== b.def.trainKey) return;
+    b.autoTrainUnitId = cmd.unitId;
+  });
+
   registerCommandHandler('cancelTrain', (sim, cmd) => {
     if (cmd.kind !== 'cancelTrain') return;
     const b = sim.state.building(cmd.buildingId);

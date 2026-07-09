@@ -31,6 +31,19 @@ function sphereGold(x: number, y: number, z: number): THREE.Mesh {
   return m;
 }
 
+/** Battlement teeth along one edge of a square top. */
+function crenellations(g: THREE.Group, half: number, y: number, color: number, count = 5): void {
+  for (let i = 0; i < count; i++) {
+    const p = -half + (i / (count - 1)) * half * 2;
+    g.add(box(0.34, 0.32, 0.34, color, p, y, -half));
+    g.add(box(0.34, 0.32, 0.34, color, p, y, half));
+    if (i > 0 && i < count - 1) {
+      g.add(box(0.34, 0.32, 0.34, color, -half, y, p));
+      g.add(box(0.34, 0.32, 0.34, color, half, y, p));
+    }
+  }
+}
+
 const FACTORIES: Record<string, Factory> = {
   keepEuropean: (team) => {
     const g = group(
@@ -46,8 +59,12 @@ const FACTORIES: Record<string, Factory> = {
       cone(0.85, 0.9, ROOF_RED, 1.9, 4.2, 1.9, 8),
       box(1.6, 1.9, 2.4, DARKSTONE, 0, 0.95, 2.2), // gate block
       box(1.0, 1.2, 0.2, 0x2a2018, 0, 0.6, 3.42), // gate door
+      // Arrow-slit windows.
+      box(0.16, 0.7, 0.06, 0x2a2018, -1.0, 1.7, 2.12),
+      box(0.16, 0.7, 0.06, 0x2a2018, 1.0, 1.7, 2.12),
       banner(team, 4.6, 0, 0),
     );
+    crenellations(g, 2.15, 3.25, DARKSTONE);
     return g;
   },
   house: (team) => group(
@@ -172,6 +189,8 @@ const FACTORIES: Record<string, Factory> = {
   stoneWall: () => group(
     box(0.95, 1.5, 0.4, STONE, 0, 0.75),
     box(0.95, 0.2, 0.5, DARKSTONE, 0, 1.6),
+    box(0.24, 0.24, 0.5, DARKSTONE, -0.3, 1.8),
+    box(0.24, 0.24, 0.5, DARKSTONE, 0.3, 1.8),
   ),
   gate: (team) => group(
     box(0.5, 1.8, 0.5, STONE, -0.7, 0.9),
@@ -338,9 +357,84 @@ function fallback(team: number): THREE.Group {
   return group(box(1.4, 1.0, 1.4, 0xb59a6a, 0, 0.5), cone(1.2, 0.8, ROOF_RED, 0, 1.4, 0, 4), banner(team, 1.6, 0.5, 0.5));
 }
 
-export function buildBuildingMesh(meshKey: string, teamColor: number): THREE.Group {
-  const factory = FACTORIES[meshKey];
-  const g = factory ? factory(teamColor) : fallback(teamColor);
+/** Level-2 house: two floors under a proper roof. */
+function houseLevel2(team: number): THREE.Group {
+  return group(
+    box(1.7, 0.9, 1.5, 0xb59a6a, 0, 0.45),
+    box(1.5, 0.8, 1.3, 0xc7ad7e, 0, 1.3),
+    cone(1.3, 0.9, ROOF_RED, 0, 2.15, 0, 4),
+    box(0.35, 0.35, 0.06, 0x3d6f9a, 0.4, 1.35, 0.66), // window
+    box(0.35, 0.35, 0.06, 0x3d6f9a, -0.4, 1.35, 0.66),
+    banner(team, 2.2, 0.7, 0.6),
+  );
+}
+
+/** Level-3 house: stone manor with chimney and gold trim. */
+function houseLevel3(team: number): THREE.Group {
+  return group(
+    box(1.9, 1.0, 1.7, STONE, 0, 0.5),
+    box(1.7, 0.9, 1.5, 0xc7ad7e, 0, 1.45),
+    box(2.0, 0.18, 1.8, DARKSTONE, 0, 1.0), // stone band
+    cone(1.5, 1.0, 0x6a7a9a, 0, 2.4, 0, 4), // slate roof
+    cylinder(0.14, 0.16, 0.9, DARKSTONE, 0.6, 2.5, -0.4, 6), // chimney
+    box(0.4, 0.4, 0.06, 0x3d6f9a, 0.45, 1.5, 0.76),
+    box(0.4, 0.4, 0.06, 0x3d6f9a, -0.45, 1.5, 0.76),
+    box(0.5, 0.7, 0.08, 0x2a2018, 0, 0.35, 0.88), // door
+    sphereGold(0, 3.05, 0),
+    banner(team, 2.6, 0.8, 0.7),
+  );
+}
+
+/**
+ * Fortress keeps grow with fortress tier: the whole keep scales up and gains
+ * banners (T2), a gold crown finial (T3), and a rooftop ballista (T4).
+ */
+function applyKeepTier(g: THREE.Group, team: number, tier: number): void {
+  const top = new THREE.Box3().setFromObject(g).max.y;
+  if (tier >= 2) {
+    g.add(banner(team, top * 0.72, 2.35, 2.35));
+    g.add(banner(team, top * 0.72, -2.35, -2.35));
+  }
+  if (tier >= 3) {
+    g.add(sphereGold(0, top + 0.35, 0));
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.7, 5), mat(0xd4af37));
+    m.position.set(0, top, 0);
+    g.add(m);
+  }
+  if (tier >= 4) {
+    // Corner ballista emplacement.
+    const bal = group(
+      cylinder(0.55, 0.65, 0.5, DARKSTONE, 0, 0.25, 0, 7), // platform
+      box(0.7, 0.12, 0.5, WOOD, 0, 0.56),
+      box(0.9, 0.07, 0.07, DARKWOOD, 0.05, 0.68),
+      box(0.06, 0.06, 0.85, DARKWOOD, 0.2, 0.68), // bow arms
+      box(0.6, 0.05, 0.05, 0xc8d0da, 0.3, 0.7), // bolt
+    );
+    bal.position.set(1.7, top * 0.58, -1.7);
+    g.add(bal);
+  }
+  const s = 1 + 0.15 * (tier - 1);
+  g.scale.set(s, s, s);
+}
+
+export interface BuildingMeshOpts {
+  /** Fortress tier (keeps grow and gain defenses per tier). */
+  tier?: number;
+  /** House level (houses upgrade into homesteads and manors). */
+  level?: number;
+}
+
+export function buildBuildingMesh(meshKey: string, teamColor: number, opts: BuildingMeshOpts = {}): THREE.Group {
+  let g: THREE.Group;
+  if (meshKey === 'house' && (opts.level ?? 1) >= 3) g = houseLevel3(teamColor);
+  else if (meshKey === 'house' && (opts.level ?? 1) === 2) g = houseLevel2(teamColor);
+  else {
+    const factory = FACTORIES[meshKey];
+    g = factory ? factory(teamColor) : fallback(teamColor);
+  }
+  if (meshKey.startsWith('keep') && (opts.tier ?? 1) > 1) {
+    applyKeepTier(g, teamColor, opts.tier ?? 1);
+  }
   g.traverse((o) => {
     if (o instanceof THREE.Mesh) {
       o.castShadow = true;

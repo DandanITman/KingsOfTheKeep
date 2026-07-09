@@ -11,8 +11,7 @@ export class ObjectivesPanel {
   constructor(state: MatchState) {
     this.state = state;
     this.root = el('div', { className: 'panel objectives-panel' });
-    this.root.style.cssText +=
-      'position:absolute;right:12px;top:12px;width:230px;padding:8px 12px;font-size:12px;';
+    this.root.style.cssText += 'padding:8px 12px;font-size:12px;';
   }
 
   update(): void {
@@ -21,14 +20,16 @@ export class ObjectivesPanel {
     this.lastUpdate = now;
     const items = objectiveStatus(this.state);
     this.root.innerHTML = '';
+    this.root.append(el('div', { className: 'objectives-title', text: 'Objective' }));
     for (const item of items) {
-      this.root.append(el('div', { html: `<b style="color:var(--gold)">${item.label}</b>` }));
+      this.root.append(el('div', { className: 'objective-label', text: item.label }));
       const bar = el('div');
-      bar.style.cssText = 'height:5px;background:#111;border-radius:3px;margin:4px 0;overflow:hidden;';
+      bar.className = 'objective-bar';
       const fill = el('div');
-      fill.style.cssText = `height:100%;width:${Math.min(100, Math.max(0, item.progress * 100))}%;background:var(--gold-dim);`;
+      fill.className = 'objective-fill';
+      fill.style.width = `${Math.min(100, Math.max(0, item.progress * 100))}%`;
       bar.append(fill);
-      this.root.append(bar, el('div', { text: item.detail }));
+      this.root.append(bar, el('div', { className: 'objective-detail', text: item.detail }));
     }
   }
 }

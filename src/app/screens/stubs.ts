@@ -3,8 +3,7 @@ import type { Screen, ScreenManager } from '../ScreenManager';
 
 /** Temporary placeholder screens, replaced by real implementations in later milestones. */
 export function createStubScreen(screens: ScreenManager, titleText: string, note: string): Screen {
-  const root = el('div');
-  root.style.background = 'radial-gradient(ellipse at 50% 30%, #241c10 0%, #0c0a08 70%)';
+  const root = el('div', { className: 'royal-screen' });
   root.append(
     el('div', { className: 'screen-title', text: titleText }),
     el('p', { text: note }),

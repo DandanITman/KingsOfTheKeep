@@ -7,8 +7,7 @@ import type { BotDifficulty, FactionId, MatchSetup, VictoryMode } from '@/data/t
 import type { Screen, ScreenManager } from '../ScreenManager';
 
 export function createPlaySetupScreen(screens: ScreenManager): Screen {
-  const root = el('div');
-  root.style.background = 'radial-gradient(ellipse at 50% 30%, #241c10 0%, #0c0a08 70%)';
+  const root = el('div', { className: 'royal-screen' });
 
   const setup: MatchSetup = {
     mapId: MAPS[0].id,
@@ -50,7 +49,7 @@ export function createPlaySetupScreen(screens: ScreenManager): Screen {
     },
   );
   const mapDesc = el('div');
-  mapDesc.style.cssText = 'font-size:12px;color:#a89468;margin:-2px 0 6px;min-height:16px;';
+  mapDesc.style.cssText = 'font-size:12px;color:var(--muted);margin:-2px 0 6px;min-height:16px;';
   function updateMapDesc() {
     mapDesc.textContent = MAPS.find((m) => m.id === setup.mapId)?.description ?? '';
   }

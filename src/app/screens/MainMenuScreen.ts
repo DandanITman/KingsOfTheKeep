@@ -1,6 +1,7 @@
 import { el, button } from '@/ui/components/dom';
 import { showModal } from '@/ui/components/Modal';
 import { saveStore } from '@/core/save/SaveStore';
+import gameLogoUrl from '@/assets/kings-of-the-keep-logo.png';
 import type { Screen, ScreenManager } from '../ScreenManager';
 
 export const PROFILE_ICONS: Record<string, string> = {
@@ -17,19 +18,20 @@ export const PROFILE_ICONS: Record<string, string> = {
 };
 
 export function createMainMenuScreen(screens: ScreenManager): Screen {
-  const root = el('div');
-  root.style.cssText =
-    'background: radial-gradient(ellipse at 50% 30%, #2a2013 0%, #0c0a08 70%);';
+  const root = el('div', { className: 'main-menu-screen' });
 
   // Decorative background handled later by menu 3D scene (M12); banner art via CSS for now.
-  const banner = el('div');
-  banner.style.cssText = `position:absolute;inset:0;pointer-events:none;opacity:0.25;
-    background-image: repeating-linear-gradient(90deg, transparent 0 120px, rgba(212,175,55,0.06) 120px 124px);`;
+  const banner = el('div', { className: 'menu-crest-backdrop' });
 
-  const title = el('div', { className: 'screen-title', text: 'KINGS OF THE KEEP' });
-  title.style.fontSize = '54px';
-  const subtitle = el('div', { text: 'Build your keep. Raise your army. Command the war.' });
-  subtitle.style.cssText = 'color:#a89468;margin-bottom:40px;font-style:italic;';
+  const gameLogo = document.createElement('img');
+  gameLogo.className = 'game-logo';
+  gameLogo.src = gameLogoUrl;
+  gameLogo.alt = 'Kings of the Keep';
+
+  const subtitle = el('div', {
+    className: 'menu-subtitle',
+    text: 'Build your keep. Raise your army. Command the war.',
+  });
 
   const buttons = el('div', { className: 'menu-buttons' }, [
     button('Play', () => screens.show('playSetup')),
@@ -84,7 +86,7 @@ export function createMainMenuScreen(screens: ScreenManager): Screen {
     for (const [key, emoji] of Object.entries(PROFILE_ICONS)) {
       const cell = el('div', { text: emoji, title: key });
       cell.style.cssText = `font-size:26px;padding:8px;border-radius:8px;cursor:pointer;text-align:center;
-        border:2px solid ${key === selectedIcon ? 'var(--gold)' : 'transparent'};background:#241b10;`;
+        border:2px solid ${key === selectedIcon ? 'var(--gold)' : 'transparent'};background:#041d31;`;
       cell.addEventListener('click', () => {
         selectedIcon = key;
         cells.forEach((c) => (c.style.borderColor = 'transparent'));
@@ -117,10 +119,9 @@ export function createMainMenuScreen(screens: ScreenManager): Screen {
     document.body.append(backdrop);
   }
 
-  const version = el('div', { text: 'v0.1 — single player' });
-  version.style.cssText = 'position:absolute;bottom:14px;left:18px;font-size:12px;color:#665;';
+  const version = el('div', { className: 'version-tag', text: 'v0.1 — single player' });
 
-  root.append(banner, title, subtitle, buttons, topRight, version);
+  root.append(banner, gameLogo, subtitle, buttons, topRight, version);
 
   return {
     root,

@@ -25,6 +25,7 @@ import { ObjectivesPanel } from '@/ui/hud/ObjectivesPanel';
 import { BotController } from '@/ai/BotController';
 import { createBotProfile } from '@/ai/BotProfile';
 import { FOG_VISIBLE, FOG_BLACK } from '@/sim/systems/FogSystem';
+import { hideCardPopup } from '@/ui/cards/CardHover';
 import { MatchInput } from './MatchInput';
 import { MatchSelection } from './MatchSelection';
 import type { Screen, ScreenManager } from '../ScreenManager';
@@ -173,6 +174,22 @@ export class MatchRunner {
     this.input.onFlagPlace = (flagType, world) => {
       this.sim.enqueue({ kind: 'placeFlag', player: 0, flagType, pos: world });
     };
+    this.input.onFlagRemove = (world) => {
+      // Nearest own flag under the cursor gets pulled up.
+      let best: number | null = null;
+      let bestD = 2.5;
+      for (const f of this.sim.state.flags) {
+        if (f.dead || f.player !== 0) continue;
+        const d = Math.hypot(f.pos.x - world.x, f.pos.y - world.y);
+        if (d < bestD) {
+          bestD = d;
+          best = f.id;
+        }
+      }
+      if (best === null) return false;
+      this.sim.enqueue({ kind: 'removeFlag', player: 0, flagId: best });
+      return true;
+    };
 
     const bottomLeft = el('div', { className: 'hud-bottom' });
     bottomLeft.style.flexDirection = 'column';
@@ -244,9 +261,7 @@ export class MatchRunner {
       'Watch your command cap 👥 — build Houses to raise it.',
     ];
     let idx = 0;
-    const tip = el('div');
-    tip.style.cssText = `position:absolute;top:64px;left:50%;transform:translateX(-50%);background:var(--panel);
-      border:1px solid var(--border);border-radius:8px;padding:6px 14px;font-size:13px;color:#c9b681;z-index:6;cursor:pointer;`;
+    const tip = el('div', { className: 'beginner-tip' });
     tip.textContent = `💡 ${tips[0]} (click to dismiss)`;
     tip.addEventListener('click', () => {
       timers.forEach(window.clearTimeout);
@@ -380,10 +395,12 @@ export class MatchRunner {
 
   dispose(): void {
     cancelAnimationFrame(this.rafId);
+    hideCardPopup();
     window.removeEventListener('keydown', this.escHandler);
     if (this.devKeyHandler) window.removeEventListener('keydown', this.devKeyHandler);
     import('@/audio/AudioManager').then(({ audio }) => audio.detachMatch());
     this.input.dispose();
+    this.cardBar.dispose();
     this.rig.dispose();
     this.renderer.dispose();
   }

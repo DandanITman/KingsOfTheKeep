@@ -74,13 +74,27 @@ export const REPAIR_COST_FRACTION = 0.25; // of build cost per full repair
 export const BUILDING_REFUND_FRACTION = 0.5; // refunded if cancelled/destroyed during construction
 
 // --- Macro ---
-export const MACRO_RECONCILE_SECS = 2;
+export const MACRO_RECONCILE_SECS = 0.5;
 export const MARCH_REGROUP_FRACTION = 0.7;
 export const MARCH_FLAG_RADIUS = 8;
 export const ASSAULT_FLAG_RADIUS = 14;
 export const DEFEND_LEASH_RADIUS = 18;
 export const HARASS_SPEED_THRESHOLD = 4.5;
 export const EMERGENCY_FULL_ASSAULT_SECS = 60;
+
+// --- Fortress garrison & ballista (castle defense) ---
+/** Ranged units that can mount the fortress walls per tier (tier 1 = none). */
+export const FORTRESS_GARRISON_SLOTS: Record<number, number> = { 1: 0, 2: 4, 3: 6, 4: 8 };
+/** Extra attack range garrisoned archers gain from elevation. */
+export const GARRISON_RANGE_BONUS = 2.5;
+/** Tier-4 fortress rooftop ballista. */
+export const FORTRESS_BALLISTA = { damage: 55, range: 17, periodSecs: 4.0, splash: 1.2 };
+
+// --- House upgrades (level 2 and 3) ---
+export const HOUSE_UPGRADES: { cost: Partial<Record<Resource, number>>; hp: number; command: number; name: string }[] = [
+  { cost: { wood: 80, stone: 20 }, hp: 150, command: 4, name: 'Homestead' },
+  { cost: { wood: 120, stone: 60, gold: 40 }, hp: 250, command: 6, name: 'Manor' },
+];
 
 // --- Vision ---
 export const FOG_CELL = 2; // world units per fog cell

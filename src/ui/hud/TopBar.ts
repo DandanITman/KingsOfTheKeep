@@ -1,12 +1,13 @@
 import { el } from '@/ui/components/dom';
+import { icon } from '@/ui/icons';
 import type { MatchState } from '@/sim/MatchState';
 
-const RES_ICONS: Record<string, string> = {
-  food: '🍖',
-  wood: '🪵',
-  stone: '🪨',
-  gold: '🪙',
-  influence: '✨',
+const RES_ICON_KEYS: Record<string, string> = {
+  food: 'food',
+  wood: 'wood',
+  stone: 'stone',
+  gold: 'goldRes',
+  influence: 'influence',
 };
 
 /** Top resource bar: resources, command, match timer, difficulty, pause. */
@@ -29,12 +30,12 @@ export class TopBar {
     this.influenceRow.style.display = 'none';
     this.root.append(this.influenceRow);
 
-    this.root.append(this.makeRes('command', '👥'));
+    this.root.append(this.makeRes('command', 'command'));
 
     this.timerEl = el('span', { className: 'hud-timer', text: '0:00' });
     this.root.append(this.timerEl);
 
-    const diff = el('span', { text: state.setup.botDifficulty.toUpperCase() });
+    const diff = el('span', { className: 'hud-difficulty', text: state.setup.botDifficulty.toUpperCase() });
     diff.style.cssText = 'font-size:11px;color:#8a7a52;letter-spacing:1px;';
     this.root.append(diff);
 
@@ -44,11 +45,11 @@ export class TopBar {
     this.root.append(pause);
   }
 
-  private makeRes(key: string, icon?: string): HTMLElement {
+  private makeRes(key: string, iconKey = RES_ICON_KEYS[key] ?? key): HTMLElement {
     const value = el('span', { text: '0' });
     this.values.set(key, value);
     return el('div', { className: 'res' }, [
-      el('span', { className: 'icon', text: icon ?? RES_ICONS[key] ?? '?' }),
+      el('span', { className: 'icon', html: icon(iconKey) }),
       value,
     ]);
   }

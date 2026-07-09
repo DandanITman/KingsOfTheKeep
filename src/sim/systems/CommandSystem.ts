@@ -1,3 +1,5 @@
+import { dist } from '@/core/mathUtils';
+import { FORTRESS_GARRISON_SLOTS, HOUSE_UPGRADES } from '@/data/balance';
 import type { Command } from '../commands';
 import type { MatchSim } from '../MatchSim';
 import { Unit } from '../entities/Entity';
@@ -12,8 +14,21 @@ export function processCommand(sim: MatchSim, cmd: Command): void {
   switch (cmd.kind) {
     case 'setStance': {
       const p = s.players[cmd.player];
-      if (cmd.stance === 'attack') p.stanceAttack = cmd.enabled;
-      else p.stanceDefend = cmd.enabled;
+      if (cmd.stance === 'attack') {
+        p.stanceAttack = cmd.enabled;
+        if (cmd.enabled) {
+          p.stanceDefend = false;
+        } else {
+          p.stanceDefend = true;
+          p.fullAssaultUntilTick = null;
+        }
+      } else {
+        p.stanceDefend = cmd.enabled;
+        if (cmd.enabled) {
+          p.stanceAttack = false;
+          p.fullAssaultUntilTick = null;
+        }
+      }
       s.bus.emit(cmd.stance === 'attack' ? 'attackCommand' : 'defendCommand', { player: cmd.player });
       break;
     }
@@ -31,9 +46,78 @@ export function processCommand(sim: MatchSim, cmd: Command): void {
       for (const id of cmd.unitIds) {
         const u = s.unit(id);
         if (!u || u.player !== cmd.player) continue;
+        if (u.garrisonedIn !== null) {
+          // Ordered off the walls: dismount first.
+          u.pos = s.nav.nearestFree(u.pos);
+          u.prevPos = { ...u.pos };
+          u.garrisonedIn = null;
+        }
         u.task = { kind: 'move', dest: { ...cmd.dest }, path: null, attackMove: cmd.attackMove, pinned: true };
         u.macroTargetFlagId = null;
       }
+      break;
+    }
+    case 'garrisonRanged': {
+      const b = s.building(cmd.buildingId);
+      if (!b || b.player !== cmd.player || b.def.kind !== 'fortress') break;
+      const p = s.players[cmd.player];
+      const slots = FORTRESS_GARRISON_SLOTS[p.tier] ?? 0;
+      const inside = s.units.filter(
+        (u) => !u.dead && (u.garrisonedIn === b.id || (u.task.kind === 'garrison' && u.task.buildingId === b.id)),
+      ).length;
+      let free = Math.min(slots - inside, cmd.count ?? Infinity);
+      if (free <= 0) break;
+      // Nearest available ranged units head for the walls.
+      const candidates = s.units
+        .filter(
+          (u) =>
+            !u.dead &&
+            u.player === cmd.player &&
+            u.def.role === 'ranged' &&
+            u.garrisonedIn === null &&
+            u.task.kind !== 'garrison',
+        )
+        .sort((a, b2) => dist(a.pos, b.pos) - dist(b2.pos, b.pos));
+      for (const u of candidates) {
+        if (free <= 0) break;
+        u.task = { kind: 'garrison', buildingId: b.id };
+        u.macroTargetFlagId = null;
+        free--;
+      }
+      break;
+    }
+    case 'ungarrison': {
+      const b = s.building(cmd.buildingId);
+      if (!b || b.player !== cmd.player) break;
+      for (const u of s.units) {
+        if (u.dead || u.player !== cmd.player) continue;
+        const walking = u.task.kind === 'garrison' && u.task.buildingId === b.id;
+        if (u.garrisonedIn !== b.id && !walking) continue;
+        if (u.garrisonedIn === b.id) {
+          u.pos = s.nav.nearestFree({ x: b.pos.x, y: b.pos.y + b.def.footprint[1] / 2 + 1.5 });
+          u.prevPos = { ...u.pos };
+          u.garrisonedIn = null;
+        }
+        u.task = { kind: 'idle' };
+      }
+      break;
+    }
+    case 'upgradeHouse': {
+      const b = s.building(cmd.buildingId);
+      if (!b || b.player !== cmd.player || b.defId !== 'house' || !b.complete) break;
+      const next = HOUSE_UPGRADES[b.level - 1];
+      if (!next) break; // already max level
+      if (!s.payCost(cmd.player, next.cost)) break;
+      b.level++;
+      b.maxHp += next.hp;
+      b.hp += next.hp;
+      b.bonusCommand += next.command;
+      sim.recomputeCommand();
+      s.bus.emit('alert', {
+        kind: 'upgradeComplete',
+        message: `A house has been upgraded to a ${next.name}.`,
+        player: cmd.player,
+      });
       break;
     }
     case 'concede': {
@@ -60,6 +144,7 @@ export function processCommand(sim: MatchSim, cmd: Command): void {
     case 'removeFlag':
     case 'moveFlag':
     case 'trainUnit':
+    case 'setAutoTrain':
     case 'cancelTrain':
     case 'startUpgrade':
     case 'emergency':

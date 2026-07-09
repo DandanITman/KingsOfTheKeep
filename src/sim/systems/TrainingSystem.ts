@@ -36,6 +36,12 @@ export function trainingSystem(state: MatchState, recomputeCommand: () => void):
       }
     }
 
+    // Auto-train: keep the queue topped up with the sticky unit. Fails
+    // silently when resources/command run short and retries next tick.
+    if (b.autoTrainUnitId && b.trainQueue.length < 2) {
+      tryQueueUnit(state, b, b.autoTrainUnitId);
+    }
+
     // Research.
     if (b.research) {
       const speed = p.mods.apply(1, ['researchSpeed', 'productionBoost']);

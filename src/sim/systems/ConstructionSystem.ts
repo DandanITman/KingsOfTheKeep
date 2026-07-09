@@ -27,6 +27,7 @@ export function constructionSystem(state: MatchState, recomputeCommand: () => vo
         continue;
       }
       if (stepToward(state, unit, site.pos, arriveDistance(site))) {
+        unit.facing = Math.atan2(site.pos.y - unit.pos.y, site.pos.x - unit.pos.x);
         let list = builders.get(site.id);
         if (!list) {
           list = [];
@@ -41,6 +42,7 @@ export function constructionSystem(state: MatchState, recomputeCommand: () => vo
         continue;
       }
       if (stepToward(state, unit, target.pos, arriveDistance(target))) {
+        unit.facing = Math.atan2(target.pos.y - unit.pos.y, target.pos.x - unit.pos.x);
         const p = state.players[unit.player];
         let rate = REPAIR_HP_PER_SEC * p.mods.apply(1, ['repairSpeed']);
         if (unit.def.workerBonuses?.repairMult) rate *= unit.def.workerBonuses.repairMult;

@@ -1,16 +1,17 @@
 import { el, button, selectInput } from '@/ui/components/dom';
 import { showModal } from '@/ui/components/Modal';
-import { icon } from '@/ui/icons';
 import { saveStore } from '@/core/save/SaveStore';
 import { getCard } from '@/data/cards';
 import { checkDeck, factionCards } from '@/data/deckValidation';
 import { getStarterDeck, STARTER_DECKS } from '@/data/starterDecks';
 import { factionList } from '@/data/factions';
-import { DECK_MAX_CARDS, DECK_MAX_POINTS, type Card, type CardType, type Deck, type FactionId } from '@/data/types';
+import { DECK_MAX_CARDS, DECK_MAX_POINTS, type Card, type CardType, type Deck, type FactionId, type Tier } from '@/data/types';
+import { buildCardFace, cardAge, RARITY_COLORS } from '@/ui/cards/CardFace';
+import { attachCardHover, hideCardPopup } from '@/ui/cards/CardHover';
 import type { Screen, ScreenManager } from '../ScreenManager';
 
 const TYPE_FILTERS: { value: CardType | 'all'; label: string }[] = [
-  { value: 'all', label: 'All Types' },
+  { value: 'all', label: 'All' },
   { value: 'fortress', label: 'Fortress' },
   { value: 'civilian', label: 'Civilians' },
   { value: 'economyBuilding', label: 'Economy' },
@@ -19,26 +20,33 @@ const TYPE_FILTERS: { value: CardType | 'all'; label: string }[] = [
   { value: 'unit', label: 'Units' },
   { value: 'defense', label: 'Defenses' },
   { value: 'ability', label: 'Abilities' },
-  { value: 'factionPower', label: 'Faction Powers' },
+  { value: 'factionPower', label: 'Powers' },
   { value: 'hero', label: 'Heroes' },
 ];
 
-const RARITY_COLORS: Record<string, string> = {
-  common: '#a8a8a8',
-  uncommon: '#5ad45a',
-  rare: '#4a9ae8',
-  epic: '#b45ae8',
-  legendary: '#e8a33d',
-};
+const RARITY_ORDER: Record<string, number> = { common: 0, uncommon: 1, rare: 2, epic: 3, legendary: 4 };
+
+type SortKey = 'age' | 'points' | 'rarity' | 'name' | 'type';
+
+const SORTS: { value: SortKey; label: string }[] = [
+  { value: 'age', label: 'Sort: Age' },
+  { value: 'type', label: 'Sort: Category' },
+  { value: 'points', label: 'Sort: Deck Points' },
+  { value: 'rarity', label: 'Sort: Rarity' },
+  { value: 'name', label: 'Sort: Name' },
+];
 
 export function createDeckEditorScreen(screens: ScreenManager): Screen {
-  const root = el('div');
-  root.style.cssText =
-    'background: radial-gradient(ellipse at 50% 30%, #241c10 0%, #0c0a08 70%); justify-content: flex-start; padding-top: 20px;';
+  const root = el('div', { className: 'royal-screen' });
+  root.style.cssText = 'justify-content: flex-start; padding-top: 18px;';
 
   let faction: FactionId = 'european';
   let deck: Deck = newDeck(faction);
   let typeFilter: CardType | 'all' = 'all';
+  let ageFilter: Tier | 0 = 0;
+  let sortKey: SortKey = 'age';
+  /** Spinner canvases from the last collection render. */
+  let tileDisposers: (() => void)[] = [];
 
   function newDeck(f: FactionId): Deck {
     const starter = STARTER_DECKS[f];
@@ -51,12 +59,10 @@ export function createDeckEditorScreen(screens: ScreenManager): Screen {
   }
 
   const title = el('div', { className: 'screen-title', text: 'Deck Editor' });
-  title.style.fontSize = '30px';
-  title.style.marginBottom = '8px';
+  title.style.cssText += 'font-size:30px;margin-bottom:8px;';
 
   // --- toolbar ---
-  const toolbar = el('div');
-  toolbar.style.cssText = 'display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap;justify-content:center;';
+  const toolbar = el('div', { className: 'deck-editor-toolbar' });
 
   const factionSelect = selectInput(
     factionList().map((f) => ({ value: f.id as FactionId, label: f.name })),
@@ -75,7 +81,6 @@ export function createDeckEditorScreen(screens: ScreenManager): Screen {
     if (deckSelect.value === '__new') {
       deck = newDeck(faction);
     } else if (deckSelect.value === '__starter') {
-      // Copy the starter as a template.
       const starter = getStarterDeck(faction);
       deck = { id: `deck_${Date.now()}`, name: `${starter.name} (copy)`, faction, cardIds: [...starter.cardIds] };
     } else if (found) {
@@ -109,32 +114,60 @@ export function createDeckEditorScreen(screens: ScreenManager): Screen {
   nameInput.maxLength = 24;
   nameInput.addEventListener('input', () => (deck.name = nameInput.value));
 
-  const filterSelect = selectInput(TYPE_FILTERS, 'all', (v) => {
-    typeFilter = v as CardType | 'all';
+  const sortSelect = selectInput(SORTS, sortKey, (v) => {
+    sortKey = v;
     renderCollection();
   });
 
-  toolbar.append(factionSelect, deckSelect, nameInput, filterSelect);
+  toolbar.append(factionSelect, deckSelect, nameInput, sortSelect);
+
+  // --- filters (category chips + age chips) ---
+  const filters = el('div', { className: 'collection-filters' });
+  const typeChips = new Map<CardType | 'all', HTMLElement>();
+  for (const f of TYPE_FILTERS) {
+    const chip = el('button', { className: 'filter-chip', text: f.label });
+    chip.addEventListener('click', () => {
+      typeFilter = f.value;
+      for (const [v, c] of typeChips) c.classList.toggle('active', v === typeFilter);
+      renderCollection();
+    });
+    typeChips.set(f.value, chip);
+    filters.append(chip);
+  }
+  typeChips.get('all')!.classList.add('active');
+
+  const ageFilters = el('div', { className: 'collection-filters' });
+  const ageChips = new Map<Tier | 0, HTMLElement>();
+  for (const a of [0, 1, 2, 3, 4] as (Tier | 0)[]) {
+    const chip = el('button', { className: 'filter-chip', text: a === 0 ? 'All Ages' : `Age ${['', 'I', 'II', 'III', 'IV'][a]}` });
+    chip.addEventListener('click', () => {
+      ageFilter = a;
+      for (const [v, c] of ageChips) c.classList.toggle('active', v === ageFilter);
+      renderCollection();
+    });
+    ageChips.set(a, chip);
+    ageFilters.append(chip);
+  }
+  ageChips.get(0)!.classList.add('active');
 
   // --- main layout ---
-  const layout = el('div');
-  layout.style.cssText = 'display:flex;gap:14px;width:min(1180px,96vw);height:62vh;';
+  const layout = el('div', { className: 'deck-editor-layout' });
 
   const collectionPanel = el('div', { className: 'panel' });
-  collectionPanel.style.cssText += 'flex:1.6;overflow-y:auto;padding:10px;';
-  const collectionGrid = el('div');
-  collectionGrid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;';
-  collectionPanel.append(collectionGrid);
+  collectionPanel.style.cssText += 'flex:1;overflow-y:auto;padding:12px;min-width:0;';
+  const collectionGrid = el('div', { className: 'collection-grid' });
+  collectionPanel.append(filters, ageFilters, collectionGrid);
 
-  const deckPanel = el('div', { className: 'panel' });
-  deckPanel.style.cssText += 'flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;';
+  const deckPanel = el('div', { className: 'panel deck-side' });
+  deckPanel.style.cssText += 'padding:12px;';
   const meter = el('div');
-  meter.style.cssText = 'font-size:14px;margin-bottom:6px;';
+  meter.style.cssText = 'font-size:14px;';
+  const meterBar = el('div', { className: 'deck-meter-bar' }, [el('div', { className: 'deck-meter-fill' })]);
   const checklist = el('div');
-  checklist.style.cssText = 'font-size:11px;color:#a89468;margin-bottom:8px;line-height:1.6;';
+  checklist.style.cssText = 'font-size:11px;color:var(--muted);margin-bottom:8px;line-height:1.6;';
   const deckList = el('div');
-  deckList.style.cssText = 'flex:1;display:flex;flex-direction:column;gap:3px;';
-  deckPanel.append(meter, checklist, deckList);
+  deckList.style.cssText = 'flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:4px;';
+  deckPanel.append(meter, meterBar, checklist, deckList);
 
   layout.append(collectionPanel, deckPanel);
 
@@ -172,50 +205,55 @@ export function createDeckEditorScreen(screens: ScreenManager): Screen {
 
   // --- rendering ---
 
-  function cardTile(card: Card, inDeck: boolean, owned: boolean): HTMLElement {
-    const tile = el('div');
-    tile.style.cssText = `border:2px solid ${inDeck ? 'var(--gold)' : RARITY_COLORS[card.rarity]};border-radius:8px;
-      padding:6px 8px;cursor:${owned ? 'pointer' : 'not-allowed'};background:#241b10;position:relative;
-      ${owned ? '' : 'filter:grayscale(0.9) brightness(0.55);'}`;
-    tile.title = `${card.description}${card.requirements?.tier ? ` (Tier ${card.requirements.tier})` : ''}`;
-    const header = el('div');
-    header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;';
-    header.append(
-      el('span', { text: `${icon(card.icon)} ${card.name}` }),
-      el('span', { text: String(card.deckPoints), title: 'Deck points' }),
-    );
-    (header.lastChild as HTMLElement).style.cssText =
-      'background:var(--gold-dim);color:#1a1410;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:bold;';
-    const sub = el('div', { text: `${card.rarity} · ${card.type}` });
-    sub.style.cssText = `font-size:10px;color:${RARITY_COLORS[card.rarity]};margin-top:2px;`;
-    tile.append(header, sub);
-    return tile;
+  function sortCards(cards: Card[]): Card[] {
+    const byName = (a: Card, b: Card): number => a.name.localeCompare(b.name);
+    return [...cards].sort((a, b) => {
+      switch (sortKey) {
+        case 'age': return cardAge(a) - cardAge(b) || a.deckPoints - b.deckPoints || byName(a, b);
+        case 'points': return a.deckPoints - b.deckPoints || byName(a, b);
+        case 'rarity': return RARITY_ORDER[a.rarity] - RARITY_ORDER[b.rarity] || byName(a, b);
+        case 'type': return a.type.localeCompare(b.type) || cardAge(a) - cardAge(b) || byName(a, b);
+        default: return byName(a, b);
+      }
+    });
+  }
+
+  function toggleCard(card: Card): void {
+    if (deck.cardIds.includes(card.id)) {
+      deck.cardIds = deck.cardIds.filter((id) => id !== card.id);
+    } else {
+      if (deck.cardIds.length >= DECK_MAX_CARDS) return;
+      if (card.type === 'fortress') {
+        // Replace any existing fortress.
+        deck.cardIds = deck.cardIds.filter((id) => getCard(id).type !== 'fortress');
+      }
+      deck.cardIds.push(card.id);
+    }
+    renderAll();
   }
 
   function renderCollection(): void {
+    hideCardPopup();
+    tileDisposers.forEach((d) => d());
+    tileDisposers = [];
     collectionGrid.innerHTML = '';
     const collection = saveStore.data.collection;
-    for (const card of factionCards(faction)) {
-      if (typeFilter !== 'all' && card.type !== typeFilter) continue;
-      const owned = (collection[card.id] ?? 0) > 0;
-      const inDeck = deck.cardIds.includes(card.id);
-      const tile = cardTile(card, inDeck, owned);
-      if (owned) {
-        tile.addEventListener('click', () => {
-          if (inDeck) {
-            deck.cardIds = deck.cardIds.filter((id) => id !== card.id);
-          } else {
-            if (deck.cardIds.length >= DECK_MAX_CARDS) return;
-            if (card.type === 'fortress') {
-              // Replace any existing fortress.
-              deck.cardIds = deck.cardIds.filter((id) => getCard(id).type !== 'fortress');
-            }
-            deck.cardIds.push(card.id);
-          }
-          renderAll();
-        });
+    let cards = factionCards(faction);
+    if (typeFilter !== 'all') cards = cards.filter((c) => c.type === typeFilter);
+    if (ageFilter !== 0) cards = cards.filter((c) => cardAge(c) === ageFilter);
+    for (const card of sortCards(cards)) {
+      const owned = collection[card.id] ?? 0;
+      const face = buildCardFace(card, { size: 'tile', model: true, locked: owned === 0, count: owned });
+      tileDisposers.push(face.dispose);
+      face.root.classList.toggle('in-deck', deck.cardIds.includes(card.id));
+      if (owned > 0) {
+        face.root.addEventListener('click', () => toggleCard(card));
       }
-      collectionGrid.append(tile);
+      tileDisposers.push(attachCardHover(face.root, () => card));
+      collectionGrid.append(face.root);
+    }
+    if (collectionGrid.children.length === 0) {
+      collectionGrid.append(el('div', { text: 'No cards match these filters.' }));
     }
   }
 
@@ -223,20 +261,28 @@ export function createDeckEditorScreen(screens: ScreenManager): Screen {
     const check = checkDeck(deck);
     meter.innerHTML = `<b style="color:${check.points > DECK_MAX_POINTS ? '#e88' : 'var(--gold)'}">${check.points}/${DECK_MAX_POINTS} points</b>
       · ${check.cardCount}/${DECK_MAX_CARDS} cards`;
+    const fill = meterBar.firstChild as HTMLElement;
+    fill.style.width = `${Math.min(100, (check.points / DECK_MAX_POINTS) * 100)}%`;
+    fill.classList.toggle('over', check.points > DECK_MAX_POINTS);
     checklist.innerHTML = check.slots
       .map((slot) => `${slot.have >= slot.need ? '✓' : '✗'} ${slot.label} (${slot.have}/${slot.need})`)
       .join(' &nbsp; ');
     deckList.innerHTML = '';
-    for (const id of deck.cardIds) {
-      const card = getCard(id);
-      const row = el('div');
-      row.style.cssText = 'display:flex;justify-content:space-between;background:#2c2113;border-radius:5px;padding:4px 8px;cursor:pointer;font-size:13px;';
-      row.append(el('span', { text: `${icon(card.icon)} ${card.name}` }), el('span', { text: `${card.deckPoints}pt` }));
-      row.title = 'Click to remove';
+    const cards = deck.cardIds.map((id) => getCard(id));
+    cards.sort((a, b) => cardAge(a) - cardAge(b) || a.deckPoints - b.deckPoints || a.name.localeCompare(b.name));
+    for (const card of cards) {
+      const row = el('div', { className: 'deck-row', title: 'Click to remove' });
+      row.style.setProperty('--rarity', RARITY_COLORS[card.rarity] ?? '#a8a8a8');
+      row.append(
+        el('span', { className: 'deck-row-age', text: ['', 'I', 'II', 'III', 'IV'][cardAge(card)] }),
+        el('span', { className: 'deck-row-name', text: card.name }),
+        el('span', { className: 'deck-row-pts', text: `${card.deckPoints}pt` }),
+      );
       row.addEventListener('click', () => {
-        deck.cardIds = deck.cardIds.filter((cid) => cid !== id);
+        deck.cardIds = deck.cardIds.filter((cid) => cid !== card.id);
         renderAll();
       });
+      tileDisposers.push(attachCardHover(row, () => card));
       deckList.append(row);
     }
   }
@@ -255,6 +301,12 @@ export function createDeckEditorScreen(screens: ScreenManager): Screen {
     onShow() {
       refreshDeckSelect();
       renderAll();
+    },
+    onHide() {
+      hideCardPopup();
+      tileDisposers.forEach((d) => d());
+      tileDisposers = [];
+      collectionGrid.innerHTML = '';
     },
   };
 }

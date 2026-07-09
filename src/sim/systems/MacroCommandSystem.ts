@@ -12,7 +12,7 @@ import type { PlayerId } from '../commands';
 import type { MatchState, PlayerState } from '../MatchState';
 import { Building, Flag, Unit } from '../entities/Entity';
 
-const PERIOD_TICKS = MACRO_RECONCILE_SECS * TICK_RATE;
+const PERIOD_TICKS = Math.max(1, Math.round(MACRO_RECONCILE_SECS * TICK_RATE));
 
 /**
  * The heart of the macro game (GDD §15): reconciles allocation sliders into
@@ -60,12 +60,18 @@ function reconcileAssignments(state: MatchState, p: PlayerState): void {
     if (fullAssault) {
       attackCount = units.length;
     } else if (p.stanceAttack) {
-      attackCount = Math.floor((units.length * (p.attackAlloc[role] ?? 0)) / 100);
+      const allocation = p.attackAlloc[role] ?? 0;
+      attackCount = allocation > 0 ? Math.max(1, Math.round((units.length * allocation) / 100)) : 0;
     }
     // Stable: keep existing attackers first, then fill by id order.
     units.sort((a, b) => Number(b.assignment === 'attack') - Number(a.assignment === 'attack') || a.id - b.id);
     for (let i = 0; i < units.length; i++) {
-      units[i].assignment = i < attackCount ? 'attack' : 'defend';
+      const next = i < attackCount ? 'attack' : 'defend';
+      if (units[i].assignment !== next) {
+        units[i].assignment = next;
+        units[i].macroTargetFlagId = null;
+        if (next === 'attack') units[i].guardPostId = null;
+      }
     }
   }
 }
@@ -171,6 +177,8 @@ function guardPosts(state: MatchState, p: PlayerState): { pos: Vec2; weight: num
     if (b.def.kind === 'fortress') weight = 2;
     else if (b.def.isGate) weight = 1.2;
     else if (b.def.kind === 'economy' && b.def.gatherResource) weight = 1;
+    else if (b.def.kind === 'economy') weight = 0.6; // houses, storehouses
+    else if (b.def.kind === 'military' || b.def.kind === 'upgrade') weight = 0.8;
     else if (b.def.kind === 'defense' && !b.def.isWall) weight = 0.8;
     if (weight === 0) continue;
     // Boost weight when threatened recently.
@@ -197,8 +205,19 @@ function driveDefendPool(state: MatchState, p: PlayerState): void {
   if (posts.length === 0) return;
   const totalWeight = posts.reduce((sum, post) => sum + post.weight, 0);
 
-  // Desired counts per post, proportional to weight.
-  const desired = posts.map((post) => Math.round((pool.length * post.weight) / totalWeight));
+  // Desired counts per post, proportional to weight (largest remainder so the
+  // pool actually spreads across every camp instead of rounding to clumps).
+  const exact = posts.map((post) => (pool.length * post.weight) / totalWeight);
+  const desired = exact.map((v) => Math.floor(v));
+  let leftover = pool.length - desired.reduce((a, b) => a + b, 0);
+  const byRemainder = exact
+    .map((v, i) => ({ i, rem: v - desired[i] }))
+    .sort((a, b) => b.rem - a.rem);
+  for (const { i } of byRemainder) {
+    if (leftover <= 0) break;
+    desired[i]++;
+    leftover--;
+  }
 
   // Assign units keeping current posts when still desired.
   const assignedCounts = new Map<number, number>();
@@ -230,15 +249,19 @@ function driveDefendPool(state: MatchState, p: PlayerState): void {
     u.guardPostId = posts[bestIdx].id;
   }
 
-  // Move to post if far.
+  // Move to post if far. Each unit takes a personal spot on a ring around
+  // the post so garrisons form a picket instead of a single pile.
   for (const u of pool) {
     if (u.task.kind === 'fight') continue;
     const post = posts.find((post) => post.id === u.guardPostId);
     if (!post) continue;
-    const d = dist(u.pos, post.pos);
-    if (d > 7) {
-      if (u.task.kind !== 'macroMove' || dist(u.task.dest, post.pos) > 3) {
-        u.task = { kind: 'macroMove', dest: { ...post.pos } };
+    const angle = (u.id % 12) * (Math.PI / 6);
+    const ring = 2.2 + (u.id % 3);
+    const spot = { x: post.pos.x + Math.cos(angle) * ring, y: post.pos.y + Math.sin(angle) * ring };
+    const d = dist(u.pos, spot);
+    if (d > 5) {
+      if (u.task.kind !== 'macroMove' || dist(u.task.dest, spot) > 3) {
+        u.task = { kind: 'macroMove', dest: spot };
       }
     } else if (u.task.kind === 'macroMove') {
       u.task = { kind: 'idle' };

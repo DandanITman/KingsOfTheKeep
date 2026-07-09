@@ -37,6 +37,8 @@ export class MatchInput {
   onNormalRightClick: ((world: Vec2, e: PointerEvent) => void) | null = null;
   onNormalDrag: ((start: { x: number; y: number }, end: { x: number; y: number }, done: boolean) => void) | null = null;
   onFlagPlace: ((flagType: import('@/sim/commands').FlagType, world: Vec2) => void) | null = null;
+  /** Right-click in flag mode: remove the flag near `world`. Return true if one was removed (stays in flag mode). */
+  onFlagRemove: ((world: Vec2) => boolean) | null = null;
 
   private dragStart: { x: number; y: number } | null = null;
   private dragMoved = false;
@@ -59,8 +61,16 @@ export class MatchInput {
       this.disposers.push(() => target.removeEventListener(type, fn as EventListener));
     };
 
+    // Pointer events that start on HUD panels/modals are UI interactions,
+    // not world commands.
+    const onHud = (e: Event): boolean =>
+      e.target instanceof Element && !!e.target.closest('.hud, .beginner-tip, .modal-backdrop, .pcard-float');
+
     on('pointermove', (e: PointerEvent) => this.handleMove(e));
-    on('pointerdown', (e: PointerEvent) => this.handleDown(e));
+    on('pointerdown', (e: PointerEvent) => {
+      if (onHud(e)) return;
+      this.handleDown(e);
+    });
     on('pointerup', (e: PointerEvent) => this.handleUp(e));
     on('contextmenu', (e: MouseEvent) => e.preventDefault());
     on(
@@ -151,7 +161,11 @@ export class MatchInput {
         this.dragMoved = false;
       }
     } else if (e.button === 2) {
-      if (this.mode.kind !== 'normal') {
+      if (this.mode.kind === 'flagPlacing') {
+        // Right-click while placing flags: erase the flag under the cursor;
+        // if there isn't one, exit flag mode.
+        if (!this.onFlagRemove?.({ ...this.ground })) this.setMode({ kind: 'normal' });
+      } else if (this.mode.kind !== 'normal') {
         this.setMode({ kind: 'normal' });
       } else {
         this.onNormalRightClick?.({ ...this.ground }, e);
