@@ -199,6 +199,45 @@ const ICONS: Record<string, string> = {
       path('M14.8 12h5.4l-2.4-2.4v4.8l2.4-2.4', STEEL) +
       line('M15.1 12h5.4'),
   ),
+  // Play-setup controls are kept as SVG so their gold silhouettes stay sharp at every UI scale.
+  setupMap: svg(
+    path('M4.2 6.2 9.6 4l4.8 2.1L20 4v13.8l-5.6 2.2-4.8-2.1-5.4 2.1V6.2Z', STEEL) +
+      line('M9.6 4v13.8M14.4 6.1v13.8') +
+      path('M12 7.2c-1.9 0-3.3 1.4-3.3 3.3 0 2.5 3.3 5.8 3.3 5.8s3.3-3.3 3.3-5.8c0-1.9-1.4-3.3-3.3-3.3Z', GOLD) +
+      circle(12, 10.5, 0.9, RED),
+  ),
+  setupPlayerFaction: bannerIcon(BRONZE, polygon('10.2,6.7 12,5.1 13.8,6.7 13.1,8.7 10.9,8.7', GOLD)),
+  setupBotFaction: svg(
+    rect(5, 4, 1.5, 16, BRONZE, 'rx="0.5"') +
+      path('M6.5 5h9.5l-2.2 3 2.2 3H6.5V5Z', STEEL) +
+      `<g transform="rotate(-38 15 14)">${path('M15 7 16.4 8.8 15.6 15h-1.2l-.8-6.2L15 7Z') + rect(12.2, 14.6, 5.6, 1.3, BRONZE, 'rx="0.5"')}</g>` +
+      `<g transform="rotate(38 15 14)">${path('M15 7 16.4 8.8 15.6 15h-1.2l-.8-6.2L15 7Z') + rect(12.2, 14.6, 5.6, 1.3, BRONZE, 'rx="0.5"')}</g>`,
+  ),
+  setupHelmet: svg(
+    path('M5.4 15.3c.2-6.4 2.8-10 6.6-10s6.4 3.6 6.6 10l-2.3 3.6H7.7l-2.3-3.6Z', BRONZE) +
+      path('M12 5.3v10.8M7 12.4h10M9.3 18.9v1.4h5.4v-1.4', STEEL) +
+      path('M9.2 15.3h5.6l-1.2 2.2h-3.2l-1.2-2.2Z', GOLD),
+  ),
+  setupLock: svg(
+    rect(6.2, 10, 11.6, 9.2, BRONZE, 'rx="1.2"') +
+      path('M8.8 10V7.8c0-2.1 1.3-3.6 3.2-3.6s3.2 1.5 3.2 3.6V10', GOLD) +
+      circle(12, 14.3, 1.1, INK) +
+      line('M12 15.4v1.6'),
+  ),
+  setupBook: svg(
+    path('M5 5.7c3.1-1.1 5.3-.3 7 1.3 1.7-1.6 3.9-2.4 7-1.3v12.6c-3.1-1.1-5.3-.3-7 1.3-1.7-1.6-3.9-2.4-7-1.3V5.7Z', STEEL) +
+      line('M12 7v12.5M7.4 9.7h2.8M7.4 12.2h2.8M13.8 9.7h2.8M13.8 12.2h2.8') +
+      polygon('17.4,3.2 18.5,5.8 21.2,6.8 18.5,7.8 17.4,10.5 16.4,7.8 13.7,6.8 16.4,5.8', GOLD),
+  ),
+  setupChevronLeft: svg(path('M14.6 4.8 8.2 12l6.4 7.2', GOLD, 'stroke-width="1.8"')),
+  setupChevronRight: svg(path('M9.4 4.8 15.8 12l-6.4 7.2', GOLD, 'stroke-width="1.8"')),
+  setupBack: svg(path('M20 12H7.4l4-4v8l-4-4H20', GOLD) + line('M7.4 12H20')),
+  setupSliders: svg(
+    line('M4 7h16M4 12h16M4 17h16') +
+      circle(9, 7, 1.8, BRONZE) +
+      circle(15.5, 12, 1.8, GOLD) +
+      circle(7, 17, 1.8, STEEL),
+  ),
 
   // Buildings
   keep: keepIcon(),

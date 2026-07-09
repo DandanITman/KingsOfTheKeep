@@ -34,19 +34,19 @@ export function createMainMenuScreen(screens: ScreenManager): Screen {
     text: 'Build your keep. Raise your army. Command the war.',
   });
 
-  const menuAction = (label: string, iconName: string, onClick: () => void, primary = false) => {
+  const menuAction = (label: string, iconSrc: string, onClick: () => void, primary = false) => {
     const action = button(label, onClick, `menu-action${primary ? ' menu-action-primary' : ''}`);
-    action.innerHTML = `<span class="menu-action-icon" aria-hidden="true">${icon(iconName)}</span><span class="menu-action-label">${label}</span>`;
+    action.innerHTML = `<span class="menu-action-icon" aria-hidden="true"><img class="menu-action-art-icon" src="${iconSrc}" alt="" /></span><span class="menu-action-label">${label}</span>`;
     return action;
   };
 
   const buttons = el('nav', { className: 'menu-buttons' }, [
-    menuAction('Play', 'longsword', () => screens.show('playSetup'), true),
-    menuAction('Deck Editor', 'menuDeck', () => screens.show('deckEditor')),
-    menuAction('Shop', 'menuShop', () => screens.show('shop')),
-    menuAction('Options', 'gears', () => screens.show('options')),
-    menuAction('Credits', 'menuCredits', () => screens.show('credits')),
-    menuAction('Exit', 'menuExit', () => {
+    menuAction('Play', '/assets/ui/menu-icons/play-crossed-swords.png', () => screens.show('playSetup'), true),
+    menuAction('Deck Editor', '/assets/ui/menu-icons/deck-editor-cards.png', () => screens.show('deckEditor')),
+    menuAction('Shop', '/assets/ui/menu-icons/shop-treasure-chest.png', () => screens.show('shop')),
+    menuAction('Options', '/assets/ui/menu-icons/options-gear.png', () => screens.show('options')),
+    menuAction('Credits', '/assets/ui/menu-icons/credits-scroll-quill.png', () => screens.show('credits')),
+    menuAction('Exit', '/assets/ui/menu-icons/exit-door-arrow.png', () => {
       showModal('Leave the Realm?', 'Do you wish to exit the game?', [
         {
           label: 'Yes',

@@ -1,9 +1,10 @@
 import { el, button, selectInput, sliderInput, formRow, checkbox } from '@/ui/components/dom';
 import { saveStore } from '@/core/save/SaveStore';
-import type { Screen, ScreenManager } from '../ScreenManager';
+import type { Screen, ScreenManager, ScreenName } from '../ScreenManager';
 
 export function createOptionsScreen(screens: ScreenManager): Screen {
   const root = el('div', { className: 'royal-screen' });
+  let returnTo: ScreenName = 'mainMenu';
 
   const title = el('div', { className: 'screen-title', text: 'Options' });
 
@@ -145,9 +146,14 @@ export function createOptionsScreen(screens: ScreenManager): Screen {
   }
   showTab('Display');
 
-  const back = button('Back', () => screens.show('mainMenu'));
+  const back = button('Back', () => screens.show(returnTo));
   back.style.marginTop = '22px';
 
   root.append(title, tabBar, panelWrap, back);
-  return { root };
+  return {
+    root,
+    onShow(params) {
+      returnTo = (params as { returnTo?: ScreenName } | undefined)?.returnTo ?? 'mainMenu';
+    },
+  };
 }

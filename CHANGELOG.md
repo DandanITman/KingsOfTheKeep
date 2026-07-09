@@ -1,5 +1,19 @@
 # Changelog
 
+## Cinematic play setup and supplied menu icon pass
+
+- Replaced the form-based play setup with a cinematic battlefield screen that
+  presents map, player faction, bot faction, and difficulty as visual
+  selectors while preserving the existing match-launch flow.
+- Added original battlefield, map-preview, and faction-medallion artwork for
+  the setup screen; documented the generated project assets for future reuse.
+- Fixed setup defaults to starter decks, normal speed, standard resources, and
+  fortress victory, removing unnecessary player-facing advanced controls.
+- Added an Options return route back to play setup, a Battle Codex help modal,
+  and responsive desktop/mobile screen layouts.
+- Replaced main-menu SVG glyphs with the six supplied high-detail transparent
+  icons for Play, Deck Editor, Shop, Options, Credits, and Exit.
+
 ## Main menu visual refinement
 
 - Rebalanced the main-menu composition around a framed central masthead and

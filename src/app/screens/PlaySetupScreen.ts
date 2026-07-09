@@ -1,19 +1,58 @@
-import { el, button, selectInput, formRow } from '@/ui/components/dom';
+import { el, button } from '@/ui/components/dom';
 import { showModal } from '@/ui/components/Modal';
 import { saveStore } from '@/core/save/SaveStore';
 import { factionList } from '@/data/factions';
 import { MAPS } from '@/data/maps';
-import type { BotDifficulty, FactionId, MatchSetup, VictoryMode } from '@/data/types';
+import type { BotDifficulty, FactionId, MatchSetup } from '@/data/types';
+import { icon } from '@/ui/icons';
 import type { Screen, ScreenManager } from '../ScreenManager';
 
+type PlayableFaction = Exclude<FactionId, 'neutral'>;
+
+const MAP_ART: Record<string, string> = {
+  greenvaleCrossing: '/assets/ui/play-setup/greenvale-crossing.png',
+  twinKeepsValley: '/assets/ui/play-setup/twin-keeps-valley.png',
+  sunscarDunes: '/assets/ui/play-setup/sunscar-dunes.png',
+  riverCrown: '/assets/ui/play-setup/river-crown.png',
+  ashenRidge: '/assets/ui/play-setup/ashen-ridge.png',
+  fourKingsBasin: '/assets/ui/play-setup/four-kings-basin.png',
+};
+
+const FACTION_ART: Record<PlayableFaction, string> = {
+  european: '/assets/ui/play-setup/european-medallion.png',
+  asian: '/assets/ui/play-setup/asian-medallion.png',
+  african: '/assets/ui/play-setup/african-medallion.png',
+  middleEastern: '/assets/ui/play-setup/middle-eastern-medallion.png',
+};
+
+const DIFFICULTIES: { id: BotDifficulty; label: string; stars: number }[] = [
+  { id: 'easy', label: 'Easy', stars: 1 },
+  { id: 'medium', label: 'Medium — balanced', stars: 2 },
+  { id: 'hard', label: 'Hard', stars: 3 },
+];
+
+function iconButton(label: string, iconName: string, onClick: () => void, className = 'setup-icon-button'): HTMLButtonElement {
+  const control = button('', onClick, className);
+  control.title = label;
+  control.setAttribute('aria-label', label);
+  control.innerHTML = icon(iconName);
+  return control;
+}
+
+function iconMarkup(iconName: string): HTMLElement {
+  return el('span', { className: 'setup-heading-icon', html: icon(iconName) });
+}
+
 export function createPlaySetupScreen(screens: ScreenManager): Screen {
-  const root = el('div', { className: 'royal-screen' });
+  const root = el('div', { className: 'play-setup-screen' });
+  const factions = factionList() as { id: PlayableFaction; name: string }[];
 
   const setup: MatchSetup = {
     mapId: MAPS[0].id,
     playerFaction: 'european',
     botFaction: 'european',
     botDifficulty: 'medium',
+    // Match configuration remains deliberately fixed for the focused setup flow.
     playerDeckId: 'starter',
     botDeckId: 'preset',
     speed: 1,
@@ -22,148 +61,193 @@ export function createPlaySetupScreen(screens: ScreenManager): Screen {
     seed: 0,
   };
 
-  const title = el('div', { className: 'screen-title', text: 'Muster for War' });
+  const commanderName = el('strong');
+  const commanderLevel = el('span');
+  const commander = el('button', { className: 'setup-commander' }, [
+    el('span', { className: 'setup-commander-crest', html: icon('menuCrown') }),
+    el('span', { className: 'setup-commander-copy' }, [commanderName, commanderLevel]),
+  ]);
+  commander.type = 'button';
+  commander.title = 'Commander profile';
+  commander.addEventListener('click', () => screens.show('mainMenu'));
 
-  // --- Play mode choice ---
-  const modeRow = el('div');
-  modeRow.style.cssText = 'display:flex;gap:16px;margin-bottom:26px;';
-  const botBtn = button('Play Against Bot', () => {
-    /* form below is always visible; this is the active mode */
-  }, 'btn primary');
-  const mpBtn = button('Multiplayer', () => {
-    showModal('Coming Soon', 'Multiplayer battles are still being forged. Check back in a future update!', [
-      { label: 'OK', primary: true },
-    ]);
-  });
-  modeRow.append(botBtn, mpBtn);
-
-  // --- Setup form ---
-  const factions = factionList().map((f) => ({ value: f.id as FactionId, label: f.name }));
-
-  const mapSelect = selectInput(
-    MAPS.map((m) => ({ value: m.id, label: `${m.name} (${m.size})` })),
-    setup.mapId,
-    (v) => {
-      setup.mapId = v;
-      updateMapDesc();
-    },
-  );
-  const mapDesc = el('div');
-  mapDesc.style.cssText = 'font-size:12px;color:var(--muted);margin:-2px 0 6px;min-height:16px;';
-  function updateMapDesc() {
-    mapDesc.textContent = MAPS.find((m) => m.id === setup.mapId)?.description ?? '';
-  }
-  updateMapDesc();
-
-  const playerDeckSelect = document.createElement('select');
-  function refreshDeckOptions() {
-    playerDeckSelect.innerHTML = '';
-    const starter = document.createElement('option');
-    starter.value = 'starter';
-    starter.textContent = 'Starter Deck (recommended)';
-    playerDeckSelect.append(starter);
-    for (const deck of saveStore.data.decks.filter((d) => d.faction === setup.playerFaction)) {
-      const o = document.createElement('option');
-      o.value = deck.id;
-      o.textContent = deck.name;
-      playerDeckSelect.append(o);
-    }
-    playerDeckSelect.value = 'starter';
-    setup.playerDeckId = 'starter';
-  }
-  playerDeckSelect.addEventListener('change', () => (setup.playerDeckId = playerDeckSelect.value));
-
-  const form = el('div', { className: 'panel' });
-  form.style.cssText += 'width:520px;max-height:56vh;overflow-y:auto;';
-  form.append(
-    formRow('Map', mapSelect),
-    mapDesc,
-    formRow(
-      'Your Faction',
-      selectInput(factions, setup.playerFaction, (v) => {
-        setup.playerFaction = v;
-        refreshDeckOptions();
+  const topBar = el('header', { className: 'setup-topbar' }, [
+    commander,
+    el('div', { className: 'setup-utility-actions' }, [
+      iconButton('Options', 'gears', () => screens.show('options', { returnTo: 'playSetup' })),
+      iconButton('Battle Codex', 'setupBook', () => {
+        showModal('Battle Codex', 'Choose a map, your faction, your opponent, and a difficulty. Your standard starter deck and fortress victory are prepared automatically.', [
+          { label: 'Understood', primary: true },
+        ]);
       }),
-    ),
-    formRow('Bot Faction', selectInput(factions, setup.botFaction, (v) => (setup.botFaction = v))),
-    formRow(
-      'Bot Difficulty',
-      selectInput<BotDifficulty>(
-        [
-          { value: 'easy', label: 'Easy — slow economy, late attacks' },
-          { value: 'medium', label: 'Medium — balanced (standard)' },
-          { value: 'hard', label: 'Hard — fast, counters, raids' },
-        ],
-        setup.botDifficulty,
-        (v) => (setup.botDifficulty = v),
-      ),
-    ),
-    formRow('Your Deck', playerDeckSelect),
-    formRow(
-      'Bot Deck',
-      selectInput(
-        [{ value: 'preset', label: 'Faction preset' }],
-        'preset',
-        (v) => (setup.botDeckId = v),
-      ),
-    ),
-    formRow(
-      'Match Speed',
-      selectInput(
-        [
-          { value: '0.5', label: '0.5× — relaxed' },
-          { value: '1', label: '1× — normal' },
-          { value: '1.5', label: '1.5× — brisk' },
-          { value: '2', label: '2× — fast' },
-        ],
-        String(setup.speed),
-        (v) => (setup.speed = Number(v)),
-      ),
-    ),
-    formRow(
-      'Starting Resources',
-      selectInput(
-        [
-          { value: 'standard', label: 'Standard' },
-          { value: 'rich', label: 'Rich — double start' },
-        ],
-        setup.startingResources,
-        (v) => (setup.startingResources = v as MatchSetup['startingResources']),
-      ),
-    ),
-    formRow(
-      'Victory Condition',
-      selectInput<VictoryMode>(
-        [
-          { value: 'fortress', label: 'Destroy the Main Fortress' },
-          { value: 'shrines', label: 'Capture the Shrines' },
-          { value: 'survival', label: 'Survive the Waves' },
-          { value: 'timedScore', label: 'Score Victory (20 min)' },
-          { value: 'annihilation', label: 'Destroy All Military' },
-        ],
-        setup.victoryMode,
-        (v) => (setup.victoryMode = v),
-      ),
-    ),
-  );
-  refreshDeckOptions();
+      iconButton('Return to Main Menu', 'menuExit', () => screens.show('mainMenu')),
+    ]),
+  ]);
 
-  const actions = el('div');
-  actions.style.cssText = 'display:flex;gap:14px;margin-top:24px;';
-  actions.append(
-    button('To Battle!', () => {
-      setup.seed = (Date.now() % 0xffffffff) >>> 0;
-      screens.show('loading', { ...setup });
-    }, 'btn primary'),
-    button('Back', () => screens.show('mainMenu')),
-  );
+  const masthead = el('section', { className: 'setup-masthead' }, [
+    el('span', { className: 'setup-masthead-crown', html: icon('menuCrown') }),
+    el('h1', { text: 'Kings of the Keep' }),
+    el('div', { className: 'setup-title-divider', html: '<span></span><i>◆</i><span></span>' }),
+  ]);
 
-  root.append(title, modeRow, form, actions);
+  const botMode = button('', () => undefined, 'setup-mode setup-mode-active');
+  botMode.innerHTML = `<span class="setup-mode-icon">${icon('shield')}</span><span>Play Against Bot</span>`;
+  const multiplayerMode = button('', () => {
+    showModal('Coming Soon', 'Multiplayer battles are still being forged. Check back in a future update!', [{ label: 'OK', primary: true }]);
+  }, 'setup-mode setup-mode-locked');
+  multiplayerMode.innerHTML = `<span class="setup-mode-icon">${icon('longsword')}</span><span class="setup-mode-copy">Multiplayer<small>Coming Soon</small></span><span class="setup-mode-lock">${icon('setupLock')}</span>`;
+  const modes = el('div', { className: 'setup-modes' }, [botMode, multiplayerMode]);
+
+  const mapImage = document.createElement('img');
+  mapImage.className = 'setup-map-image';
+  const mapName = el('div', { className: 'setup-map-name' });
+  const mapDescription = el('p', { className: 'setup-map-description' });
+  const mapDots = el('div', { className: 'setup-map-dots' });
+  let mapIndex = 0;
+
+  function selectMap(index: number): void {
+    mapIndex = (index + MAPS.length) % MAPS.length;
+    const selected = MAPS[mapIndex];
+    setup.mapId = selected.id;
+    mapImage.src = MAP_ART[selected.id];
+    mapImage.alt = `${selected.name} map preview`;
+    mapName.textContent = selected.name;
+    mapDescription.textContent = selected.description;
+    mapDots.replaceChildren(
+      ...MAPS.map((map, i) => {
+        const dot = button('', () => selectMap(i), `setup-map-dot${i === mapIndex ? ' active' : ''}`);
+        dot.setAttribute('aria-label', `Select ${map.name}`);
+        return dot;
+      }),
+    );
+  }
+
+  const mapCard = el('section', { className: 'setup-selector-card setup-map-card' }, [
+    el('h2', { className: 'setup-selector-title' }, [iconMarkup('setupMap'), el('span', { text: 'Map' })]),
+    el('div', { className: 'setup-map-preview' }, [
+      mapImage,
+      iconButton('Previous map', 'setupChevronLeft', () => selectMap(mapIndex - 1), 'setup-carousel-arrow setup-carousel-left'),
+      iconButton('Next map', 'setupChevronRight', () => selectMap(mapIndex + 1), 'setup-carousel-arrow setup-carousel-right'),
+    ]),
+    mapName,
+    mapDots,
+    mapDescription,
+  ]);
+
+  function factionCard(
+    title: string,
+    headingIcon: string,
+    getSelected: () => PlayableFaction,
+    setSelected: (faction: PlayableFaction) => void,
+  ): HTMLElement {
+    const selectedImage = document.createElement('img');
+    selectedImage.className = 'setup-faction-emblem';
+    const selectedName = el('div', { className: 'setup-faction-name' });
+    const chooser = el('div', { className: 'setup-faction-choices' });
+
+    const step = (delta: number) => {
+      const index = factions.findIndex((faction) => faction.id === getSelected());
+      setSelected(factions[(index + delta + factions.length) % factions.length].id);
+      render();
+    };
+
+    const render = () => {
+      const selected = factions.find((faction) => faction.id === getSelected())!;
+      selectedImage.src = FACTION_ART[selected.id];
+      selectedImage.alt = `${selected.name} faction emblem`;
+      selectedName.textContent = selected.name;
+      chooser.replaceChildren(
+        ...factions.map((faction) => {
+          const choice = button('', () => {
+            setSelected(faction.id);
+            render();
+          }, `setup-faction-choice${faction.id === getSelected() ? ' active' : ''}`);
+          choice.title = faction.name;
+          choice.setAttribute('aria-label', `Select ${faction.name} faction`);
+          const image = document.createElement('img');
+          image.src = FACTION_ART[faction.id];
+          image.alt = '';
+          choice.append(image);
+          return choice;
+        }),
+      );
+    };
+
+    const card = el('section', { className: 'setup-selector-card setup-faction-card' }, [
+      el('h2', { className: 'setup-selector-title' }, [iconMarkup(headingIcon), el('span', { text: title })]),
+      el('div', { className: 'setup-faction-feature' }, [
+        iconButton(`Previous ${title}`, 'setupChevronLeft', () => step(-1), 'setup-faction-arrow'),
+        el('div', { className: 'setup-faction-focus' }, [selectedImage, selectedName]),
+        iconButton(`Next ${title}`, 'setupChevronRight', () => step(1), 'setup-faction-arrow'),
+      ]),
+      chooser,
+    ]);
+    render();
+    return card;
+  }
+
+  const playerFactionCard = factionCard('Your Faction', 'setupPlayerFaction', () => setup.playerFaction as PlayableFaction, (faction) => {
+    setup.playerFaction = faction;
+  });
+  const botFactionCard = factionCard('Bot Faction', 'setupBotFaction', () => setup.botFaction as PlayableFaction, (faction) => {
+    setup.botFaction = faction;
+  });
+
+  const difficultyRows = new Map<BotDifficulty, HTMLButtonElement>();
+  function selectDifficulty(difficulty: BotDifficulty): void {
+    setup.botDifficulty = difficulty;
+    difficultyRows.forEach((row, id) => row.classList.toggle('active', id === difficulty));
+  }
+
+  const difficultyList = el('div', { className: 'setup-difficulty-list' });
+  for (const difficulty of DIFFICULTIES) {
+    const row = button('', () => selectDifficulty(difficulty.id), 'setup-difficulty-row');
+    row.innerHTML = `<span>${difficulty.label}</span><span class="setup-difficulty-stars" aria-label="${difficulty.stars} star difficulty">${'★'.repeat(difficulty.stars)}</span>`;
+    difficultyRows.set(difficulty.id, row);
+    difficultyList.append(row);
+  }
+  selectDifficulty(setup.botDifficulty);
+  const difficultyCard = el('section', { className: 'setup-selector-card setup-difficulty-card' }, [
+    el('h2', { className: 'setup-selector-title' }, [iconMarkup('setupHelmet'), el('span', { text: 'Bot Difficulty' })]),
+    difficultyList,
+  ]);
+
+  const settingsHeader = el('div', { className: 'setup-settings-heading' }, [el('span'), el('h2', { text: 'Match Settings' }), el('span')]);
+  const settingsPanel = el('main', { className: 'setup-settings-panel' }, [settingsHeader, el('div', { className: 'setup-selector-grid' }, [
+    mapCard,
+    playerFactionCard,
+    botFactionCard,
+    difficultyCard,
+  ])]);
+
+  const gameSettings = button('', () => screens.show('options', { returnTo: 'playSetup' }), 'setup-bottom-button');
+  gameSettings.innerHTML = `<span>${icon('setupSliders')}</span><span>Game Settings</span>`;
+  const toBattle = button('', () => {
+    setup.seed = (Date.now() % 0xffffffff) >>> 0;
+    screens.show('loading', { ...setup });
+  }, 'setup-battle-button');
+  toBattle.innerHTML = `<span>${icon('longsword')}</span><span>To Battle!</span>`;
+  const back = button('', () => screens.show('mainMenu'), 'setup-bottom-button setup-back-button');
+  back.innerHTML = `<span>${icon('setupBack')}</span><span>Back</span>`;
+  const actions = el('footer', { className: 'setup-actions' }, [gameSettings, toBattle, back]);
+
+  function refreshCommander(): void {
+    const profile = saveStore.data.profile;
+    const stats = saveStore.data.stats;
+    const level = 1 + Math.floor(Math.sqrt(stats.matches + stats.wins * 2));
+    commanderName.textContent = profile.name;
+    commanderLevel.textContent = `Level ${level}`;
+  }
+
+  root.append(topBar, masthead, modes, settingsPanel, actions);
+  selectMap(mapIndex);
 
   return {
     root,
     onShow() {
-      refreshDeckOptions();
+      refreshCommander();
+      selectMap(mapIndex);
+      selectDifficulty(setup.botDifficulty);
     },
   };
 }
