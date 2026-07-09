@@ -166,6 +166,40 @@ const UNKNOWN_ICON = shield(
 );
 
 const ICONS: Record<string, string> = {
+  // Main-menu navigation: larger, immediately readable silhouettes for the landing screen.
+  menuCrown: svg(
+    polygon('5,17 6.7,7.5 10.1,11.2 12,4.1 13.9,11.2 17.3,7.5 19,17', GOLD) +
+      rect(5.2, 17, 13.6, 3.1, BRONZE, 'rx="0.8"') +
+      circle(8.3, 15.3, 0.9, RED) +
+      circle(12, 14.8, 1, STEEL) +
+      circle(15.7, 15.3, 0.9, RED),
+  ),
+  menuDeck: svg(
+    `<g transform="rotate(-12 10 12)">${rect(5.2, 4.5, 10.6, 14.8, STEEL, 'rx="1"') + rect(6.6, 6, 7.8, 11.8, GOLD, 'rx="0.6"') + polygon('10.5,8.1 11.5,10.3 13.8,10.5 12,12 12.6,14.2 10.5,13 8.4,14.2 9,12 7.2,10.5 9.5,10.3', RED)}</g>` +
+      `<g transform="rotate(12 14 12)">${rect(8.5, 4.4, 10.4, 14.8, BRONZE, 'rx="1"') + rect(9.9, 5.9, 7.6, 11.8, STEEL, 'rx="0.6"') + path('M12.2 10.3h3.2M13.8 8.7v6.4', GOLD)}</g>`,
+  ),
+  menuShop: svg(
+    path('M4.8 10.3h12.5l-1.2 8.2H6L4.8 10.3Z', BRONZE) +
+      path('M4.8 10.3 7 5.9h8.2l2.1 4.4H4.8Z', GOLD) +
+      rect(9.8, 11.2, 2.6, 3.1, GOLD, 'rx="0.5"') +
+      circle(17.8, 17.6, 2.2, GOLD) +
+      circle(20.1, 19.1, 1.7, BRONZE) +
+      line('M17 17.6h1.6M17.8 16.8v1.6'),
+  ),
+  menuCredits: svg(
+    path('M7.3 5.2h9.2c-1.2 1.2-1.2 2.8 0 4v9.2c-3-1.2-6.2-1.2-9.2 0V9.2c1.2-1.2 1.2-2.8 0-4Z', GOLD) +
+      path('M7.3 5.2c-1.6 0-2.7-.8-2.7-1.8S5.7 1.6 7.3 1.6M16.5 18.4c1.6 0 2.7.8 2.7 1.8S18.1 22 16.5 22', BRONZE) +
+      line('M9.6 11h4.6M9.6 13.7h3.5') +
+      path('M16.8 9.4 21 5.2l-1.1 4.1-3.1 3.1-2.1.8.8-2.1 3.1-3.1', STEEL),
+  ),
+  menuExit: svg(
+    path('M5.3 4.5h8.8v15H5.3V4.5Z', BRONZE) +
+      path('M7.2 6.3h4.9v11.4H7.2V6.3Z', GOLD) +
+      circle(10.6, 12, 0.6, INK, 'stroke="none"') +
+      path('M14.8 12h5.4l-2.4-2.4v4.8l2.4-2.4', STEEL) +
+      line('M15.1 12h5.4'),
+  ),
+
   // Buildings
   keep: keepIcon(),
   farm: svg(

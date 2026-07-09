@@ -1,5 +1,16 @@
 # Changelog
 
+## Main menu visual refinement
+
+- Rebalanced the main-menu composition around a framed central masthead and
+  responsive action column, so navigation no longer stretches across the
+  panel at desktop resolutions.
+- Lifted the battlefield and panel overlays to retain the castle-and-banner
+  backdrop instead of obscuring it with near-black treatment.
+- Replaced generic menu glyphs and the default emoji profile marker with
+  purpose-built medieval SVG artwork for cards, shop chest, credits scroll,
+  exit door, crown, and crossed swords.
+
 ## Skeletal unit animation, terrain/lighting polish, AoE-style HUD upgrades
 
 - Rigged GLB units now actually animate: `ModelLibrary` keeps `gltf.animations`

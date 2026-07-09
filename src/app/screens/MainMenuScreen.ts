@@ -1,6 +1,7 @@
 import { el, button } from '@/ui/components/dom';
 import { showModal } from '@/ui/components/Modal';
 import { saveStore } from '@/core/save/SaveStore';
+import { icon } from '@/ui/icons';
 import gameLogoUrl from '@/assets/kings-of-the-keep-logo.png';
 import type { Screen, ScreenManager } from '../ScreenManager';
 
@@ -33,13 +34,19 @@ export function createMainMenuScreen(screens: ScreenManager): Screen {
     text: 'Build your keep. Raise your army. Command the war.',
   });
 
-  const buttons = el('div', { className: 'menu-buttons' }, [
-    button('Play', () => screens.show('playSetup')),
-    button('Deck Editor', () => screens.show('deckEditor')),
-    button('Shop', () => screens.show('shop')),
-    button('Options', () => screens.show('options')),
-    button('Credits', () => screens.show('credits')),
-    button('Exit', () => {
+  const menuAction = (label: string, iconName: string, onClick: () => void, primary = false) => {
+    const action = button(label, onClick, `menu-action${primary ? ' menu-action-primary' : ''}`);
+    action.innerHTML = `<span class="menu-action-icon" aria-hidden="true">${icon(iconName)}</span><span class="menu-action-label">${label}</span>`;
+    return action;
+  };
+
+  const buttons = el('nav', { className: 'menu-buttons' }, [
+    menuAction('Play', 'longsword', () => screens.show('playSetup'), true),
+    menuAction('Deck Editor', 'menuDeck', () => screens.show('deckEditor')),
+    menuAction('Shop', 'menuShop', () => screens.show('shop')),
+    menuAction('Options', 'gears', () => screens.show('options')),
+    menuAction('Credits', 'menuCredits', () => screens.show('credits')),
+    menuAction('Exit', 'menuExit', () => {
       showModal('Leave the Realm?', 'Do you wish to exit the game?', [
         {
           label: 'Yes',
@@ -56,6 +63,10 @@ export function createMainMenuScreen(screens: ScreenManager): Screen {
     }),
   ]);
 
+  const divider = el('div', { className: 'menu-divider', html: '<span></span><i>◆</i><span></span>' });
+  const masthead = el('header', { className: 'menu-masthead' }, [gameLogo, subtitle, divider]);
+  const frame = el('main', { className: 'menu-frame' }, [masthead, buttons]);
+
   // Profile chip (top-right)
   const iconEl = el('div', { className: 'profile-icon' });
   const nameEl = el('span');
@@ -64,7 +75,10 @@ export function createMainMenuScreen(screens: ScreenManager): Screen {
   const topRight = el('div', { className: 'top-right' }, [chip]);
 
   function refreshProfile() {
-    iconEl.textContent = PROFILE_ICONS[saveStore.data.profile.icon] ?? '👑';
+    const selectedIcon = saveStore.data.profile.icon;
+    iconEl.innerHTML = selectedIcon === 'crown'
+      ? icon('menuCrown')
+      : (PROFILE_ICONS[selectedIcon] ?? '👑');
     nameEl.textContent = saveStore.data.profile.name;
   }
 
@@ -121,7 +135,7 @@ export function createMainMenuScreen(screens: ScreenManager): Screen {
 
   const version = el('div', { className: 'version-tag', text: 'v0.1 — single player' });
 
-  root.append(banner, gameLogo, subtitle, buttons, topRight, version);
+  root.append(banner, frame, topRight, version);
 
   return {
     root,
