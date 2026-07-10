@@ -1,5 +1,19 @@
 # Changelog
 
+## Main-menu icon size and clipping fix
+
+- Normalized the six main-menu icon PNGs: trimmed each to its artwork's alpha
+  bounding box, re-centered it, and padded to a uniform 86% fill so every icon
+  reads at the same visual size. Also downscaled them from 1024px (~1 MB each)
+  to 256px (~100 KB each) — they render at ~40-54px, so this only sheds dead
+  weight.
+- Icon boxes in `.menu-action` now scale with button height via clamp()
+  instead of a fixed 52px image, which overflowed the 48px-min buttons
+  (`overflow: hidden` clipped the top and bottom edges — the "runs over the
+  edge" artifact). The primary Play button gets a proportionally larger icon.
+- Removed a doubled drop-shadow (it was applied on both the icon wrapper and
+  the img element).
+
 ## Cinematic play setup and supplied menu icon pass
 
 - Replaced the form-based play setup with a cinematic battlefield screen that
