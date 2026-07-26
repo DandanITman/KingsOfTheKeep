@@ -1149,6 +1149,37 @@ input[type='range'] {
   gap: clamp(12px, 1.35vw, 22px);
 }
 
+/* Battle rules: deck, victory mode, resources and speed. */
+.setup-rules {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: clamp(10px, 1.1vw, 18px);
+  margin-top: clamp(12px, 1.35vw, 22px);
+  padding-top: clamp(12px, 1.35vw, 20px);
+  border-top: 1px solid var(--border);
+}
+
+.setup-rule {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.setup-rule > span {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(11px, 0.85vw, 14px);
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+.setup-rule select {
+  width: 100%;
+  min-width: 0;
+  text-overflow: ellipsis;
+}
+
 .setup-selector-card {
   min-height: clamp(322px, 40vh, 440px);
   display: flex;
@@ -1510,6 +1541,10 @@ input[type='range'] {
   }
 
   .setup-selector-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .setup-rules {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 

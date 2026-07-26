@@ -43,12 +43,26 @@ export const COUNTER_TABLE: Partial<Record<UnitRole, Partial<Record<UnitRole, nu
   siege: {},
   support: {},
 };
-/** Extra tag-based counters (spear vs cavalry etc), applied multiplicatively. */
-export const TAG_COUNTERS: { attackerTag: string; defenderRole?: UnitRole; defenderTag?: string; mult: number }[] = [
+/**
+ * Extra tag-based counters (spear vs cavalry etc), applied multiplicatively on
+ * top of `COUNTER_TABLE`. Every predicate present must match for `mult` to
+ * apply; omitted predicates are wildcards.
+ */
+export const TAG_COUNTERS: {
+  attackerTag?: string;
+  attackerRole?: UnitRole;
+  defenderRole?: UnitRole;
+  defenderTag?: string;
+  mult: number;
+}[] = [
   { attackerTag: 'spear', defenderRole: 'cavalry', mult: 2.0 },
   { attackerTag: 'antiCavalry', defenderRole: 'cavalry', mult: 1.8 },
   { attackerTag: 'skirmisher', defenderRole: 'ranged', mult: 1.5 },
-  { attackerTag: 'shielded', defenderRole: 'ranged', mult: 0.7 }, // shields take less, expressed on attack against them elsewhere
+  // Shields blunt arrows: the archer is the ATTACKER and the shielded unit the
+  // DEFENDER. This used to be written the other way round (`attackerTag:
+  // 'shielded', defenderRole: 'ranged'`), which made shield units deal 30% less
+  // damage to archers — the opposite of the intent recorded in its own comment.
+  { attackerRole: 'ranged', defenderTag: 'shielded', mult: 0.7 },
 ];
 export const TARGET_ACQUIRE_PERIOD_TICKS = 5;
 export const PROJECTILE_SPEED = 22; // world units/sec
@@ -106,6 +120,8 @@ export const SHRINE_CAPTURE_RADIUS = 10;
 export const SURVIVAL_WAVES = 8;
 export const SURVIVAL_WAVE_INTERVAL_SECS = 90;
 export const TIMED_SCORE_SECS = 20 * 60;
+/** Annihilation mode: no defeat check at all before this point in the match. */
+export const ANNIHILATION_GRACE_SECS = 300;
 
 // --- Influence ---
 export const INFLUENCE_TIER3_PER_MIN = 4;

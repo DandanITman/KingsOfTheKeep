@@ -65,8 +65,6 @@ export class Unit extends Entity {
   garrisonedIn: EntityId | null = null;
   /** Ticks until removal for temporary (ability-summoned) units. */
   temporaryTicks: number | null = null;
-  /** Steering velocity smoothing. */
-  vel: Vec2 = { x: 0, y: 0 };
   /** Timed per-unit stat buffs from abilities. */
   buffs: { stat: string; op: 'mul' | 'add'; value: number; expiresTick: number }[] = [];
   /** Damage-over-time stacks. */
@@ -186,6 +184,8 @@ export class Projectile extends Entity {
   bonusVsBuildings: number;
   sourcePlayer: PlayerId;
   arc: 'flat' | 'lob';
+  /** Damage-over-time the firing unit applies on hit, if any. */
+  dotOnHit?: { dps: number; secs: number };
 
   constructor(opts: {
     player: PlayerId;
@@ -198,6 +198,7 @@ export class Projectile extends Entity {
     splash: number;
     bonusVsBuildings: number;
     arc: 'flat' | 'lob';
+    dotOnHit?: { dps: number; secs: number };
   }) {
     super(opts.player, opts.pos, 1);
     this.startPos = { ...opts.pos };
@@ -210,6 +211,7 @@ export class Projectile extends Entity {
     this.splash = opts.splash;
     this.bonusVsBuildings = opts.bonusVsBuildings;
     this.arc = opts.arc;
+    this.dotOnHit = opts.dotOnHit;
   }
 }
 

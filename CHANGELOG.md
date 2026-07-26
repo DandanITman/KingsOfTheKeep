@@ -1,5 +1,89 @@
 # Changelog
 
+## Overhaul phase 1: unit scale, fog of war, world edge, dead wiring, sim fixes
+
+First pass of a wider graphics/mechanics/playability overhaul. This phase fixes
+what visibly reads as broken and makes already-implemented content reachable; it
+adds no new systems.
+
+**Imported units were floating and ~2.5x oversized.** `ModelLibrary` fitted every
+GLB by `max(size.x, size.z)` — the *horizontal footprint*, not height — so a
+humanoid fitted to 0.9 came out over 2 units tall, and the oversizing scaled up
+the small residual gap between bind-pose grounding and the animated pose into a
+visible hover. Fitting is now split into two explicit, separately-named
+semantics: `fitHeight` for units (a unit's size is how tall it stands) and
+`fitWidth` for buildings and resource nodes (whose size is dictated by the sim's
+footprint). `UnitView.importedUnitFitSize` became `importedUnitHeight`, carrying
+real world-unit heights — 1.8 infantry, 2.4 cavalry, 2.6 camel/siege, 4.2
+elephant — against a keep of roughly 9. Procedural-mode units were always correct;
+only the GLB path was affected.
+
+**Fog of war read as a dead black void.** It was a plane floating at y=2.5 —
+exactly hut-roof height, so anything taller punched through and hovered on top of
+it — painting unexplored terrain at alpha 0.94 over near-black, with hard `?:`
+steps that showed the cell grid as blocks. It now sits at ground level, tints
+toward the biome's own horizon colour at a lighter alpha, blurs the value grid 3x3
+on upload (stored as `value * 127` so the fractional result survives 8-bit
+quantization), and samples with `smoothstep`. Resource nodes in never-seen
+territory are hidden rather than advertising themselves through the haze.
+
+**The map edge and the void beyond it were visible at max zoom-out.** Added a
+low-resolution apron extending 320 units past the map bounds that stays near-flat
+at first and then falls away, washed toward the horizon colour with distance so it
+reads as aerial perspective rather than a bright green field. The fog plane
+overhangs the map by 90 units with clamped sampling, so land outside the playable
+area carries the same fog state as the map edge beside it instead of leaving the
+map outlined as a sharp dark rectangle. Also set `fogColor === horizon` per biome
+in `Renderer` — the two differed, and distance fog fading geometry to one colour
+while the sky dome ended in another was the hard grey horizon seam.
+
+**Shadow quality:** the sun's ortho frustum was fixed at ±80 regardless of zoom,
+spending most of a 1024px shadow map on off-screen ground. It now tracks camera
+zoom, clamped to 22–90.
+
+**The deck editor, the shop, and 4 of 5 victory modes were wired to nothing.**
+`PlaySetupScreen` hardcoded `playerDeckId: 'starter'` while the deck editor saves
+decks as `deck_<timestamp>`, so `MatchScreen`'s lookup always missed and silently
+fell back — making the entire shop → packs → dust → crafting → deck-building loop
+unable to affect a match. `victoryMode`, `speed` and `startingResources` were
+hardcoded in the same block. Added a "battle rules" strip to the setup screen with
+deck (faction-filtered, refreshed when the faction changes), victory mode,
+starting resources and game speed. A deck-lookup miss now warns to the console
+instead of failing silently.
+
+**Sim correctness:**
+
+- `dotOnHit` only ever fired on melee hits — every ranged unit carrying it (10
+  units across three factions) silently lost it. It now rides on the projectile
+  and is applied at impact, through a shared `applyDot` helper so the melee and
+  projectile paths can't drift apart again.
+- Rebuilding a fortress was pointless: `player.fortressId` was written once at
+  match start and never updated, so `fortressOf()` returned null the moment the
+  original keep fell and `VictorySystem` read that as immediate defeat. It now
+  rescans for any other *completed* fortress the player holds and re-caches.
+- The `shielded` tag counter was written backwards — `attackerTag: 'shielded',
+  defenderRole: 'ranged'` made shield units deal 30% *less* damage to archers,
+  the opposite of the intent recorded in its own comment. `TAG_COUNTERS` gained
+  an `attackerRole` predicate and the rule is now expressed as archers doing
+  less to shielded targets.
+- `annihilation` mode was a trap rather than a victory condition: after a 180s
+  grace, a player with no army and no military buildings lost on the spot, so a
+  peacefully-teching player who simply hadn't built a barracks by 3:00 lost
+  unattacked. The grace is now 300s and elimination additionally requires that
+  the player cannot afford any military building in their deck.
+- `Unit.vel` was declared and documented as "steering velocity smoothing" but
+  never read or written. Removed.
+
+**Save robustness:** `migrate()`'s backfill was shallow at the top level only
+despite its comment claiming "per section", so a save carrying a partial
+`options` object survived migration untouched and then killed the app at boot
+dereferencing `options.display.uiScale`. It now descends three levels, filling
+missing settings while preserving the player's existing choices.
+
+Typecheck clean; the vitest suite went 35 → 41 tests. The five new sim/save cases
+were each verified to fail against the old behaviour before the fix was restored,
+so they test the bug rather than the implementation.
+
 ## Main-menu icon size and clipping fix
 
 - Normalized the six main-menu icon PNGs: trimmed each to its artwork's alpha

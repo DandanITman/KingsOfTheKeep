@@ -90,6 +90,13 @@ export class MatchRunner {
     this.screens = screens;
     this.speedMult = setup.speed;
     const savedDeck = saveStore.data.decks.find((d) => d.id === setup.playerDeckId);
+    if (!savedDeck && setup.playerDeckId !== 'starter') {
+      // A miss here silently swaps in the starter deck, which is exactly how the
+      // deck editor went unnoticed as disconnected for so long. Say so.
+      console.warn(
+        `[match] deck "${setup.playerDeckId}" not found in save; falling back to the starter deck.`,
+      );
+    }
     this.sim = new MatchSim(setup, this.bus, savedDeck ? { player: savedDeck } : undefined);
     const state = this.sim.state;
     const display = saveStore.data.options.display;
@@ -103,7 +110,7 @@ export class MatchRunner {
     this.ghost = new GhostPlacementView();
     this.effects = new EffectsView(state);
     this.flagView = new FlagView(state);
-    this.fogView = new FogView(state);
+    this.fogView = new FogView(state, state.map.terrain.biome);
     this.renderer.scene.add(
       this.terrain.root,
       this.unitView.root,
@@ -303,7 +310,7 @@ export class MatchRunner {
 
     const alpha = Math.min(1, this.accumulator / TICK_SECS);
     this.rig.update(dt, this.renderer.camera);
-    this.renderer.followShadow(this.rig.target);
+    this.renderer.followShadow(this.rig.target, this.rig.zoom);
     this.unitView.update(alpha, now);
     this.buildingView.update();
     this.effects.update(alpha);

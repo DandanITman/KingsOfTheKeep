@@ -438,10 +438,11 @@ function applyTeamColor(root: THREE.Object3D, slots: string[], teamColor: number
 }
 
 /**
- * Load a model by manifest ID. Returns a fresh clone fitted to `fitSize`
- * (largest XZ dimension, world units) with manifest scale/rotation/yOffset
- * applied, or null when the entry is missing, stubbed, or fails to load —
- * callers keep their procedural placeholder in that case.
+ * Load a model by manifest ID. Returns a fresh clone fitted to `fitHeight`
+ * (units — height in world units) or `fitWidth` (footprint-driven buildings
+ * and resource nodes — largest XZ dimension), with manifest
+ * scale/rotation/yOffset applied. Returns null when the entry is missing,
+ * stubbed, or fails to load — callers keep their procedural placeholder.
  */
 /**
  * Variant packs (e.g. a GLB holding five trees side by side) keep exactly one
@@ -546,7 +547,7 @@ async function donorClips(): Promise<THREE.AnimationClip[]> {
 
 export async function loadModelById(
   id: string,
-  opts: { teamColor?: number; fitSize?: number; variantIndex?: number } = {},
+  opts: { teamColor?: number; fitHeight?: number; fitWidth?: number; variantIndex?: number } = {},
 ): Promise<THREE.Group | null> {
   await loadManifest();
   const entry = getEntry(id);
@@ -574,12 +575,18 @@ export async function loadModelById(
   clone.scale.setScalar(entryScale);
   clone.rotation.y = entry.rotation || 0;
 
-  if (opts.fitSize) {
-    const box = measureBounds(clone, base.skinned);
+  // Two distinct fitting semantics, deliberately separate:
+  //   fitHeight — units. A unit's size is how tall it stands, and fitting a
+  //     humanoid by its horizontal extent (shoulder width, or an arms-out
+  //     pose) produces wildly inconsistent and usually oversized characters.
+  //   fitWidth  — buildings and resource nodes, whose size is dictated by the
+  //     sim's footprint, so the horizontal extent is the meaningful axis.
+  if (opts.fitHeight || opts.fitWidth) {
     const size = new THREE.Vector3();
-    box.getSize(size);
-    const largest = Math.max(size.x, size.z);
-    if (largest > 1e-4) clone.scale.multiplyScalar(opts.fitSize / largest);
+    measureBounds(clone, base.skinned).getSize(size);
+    const measured = opts.fitHeight ? size.y : Math.max(size.x, size.z);
+    const target = opts.fitHeight ?? opts.fitWidth ?? 0;
+    if (measured > 1e-4) clone.scale.multiplyScalar(target / measured);
     // Re-ground after fitting so the base sits at y=0.
     const fitted = measureBounds(clone, base.skinned);
     clone.position.y -= fitted.min.y;
@@ -604,7 +611,7 @@ export async function loadModelById(
 export async function loadModelForMesh(
   meshKey: string,
   faction: string,
-  opts: { teamColor?: number; fitSize?: number } = {},
+  opts: { teamColor?: number; fitWidth?: number } = {},
 ): Promise<THREE.Group | null> {
   const id = modelIdForMesh(meshKey, faction);
   return id ? loadModelById(id, opts) : null;
@@ -615,7 +622,7 @@ export async function loadModelForUnit(
   unitId: string,
   meshKey: string,
   faction: string,
-  opts: { teamColor?: number; fitSize?: number } = {},
+  opts: { teamColor?: number; fitHeight?: number } = {},
 ): Promise<THREE.Group | null> {
   const id = modelIdForUnit(unitId, meshKey, faction);
   return id ? loadModelById(id, opts) : null;
@@ -625,7 +632,7 @@ export async function loadModelForUnit(
 export async function loadModelForResourceNode(
   nodeType: string,
   biome: string,
-  opts: { fitSize?: number; variantIndex?: number } = {},
+  opts: { fitWidth?: number; variantIndex?: number } = {},
 ): Promise<THREE.Group | null> {
   const id = modelIdForResourceNode(nodeType, biome);
   return id ? loadModelById(id, opts) : null;

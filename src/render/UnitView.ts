@@ -109,36 +109,43 @@ function taskAnim(unit: Unit, timeMs: number, moving: boolean): Anim {
   return { swing: moving ? Math.sin(t * 8 + phase) * 0.3 : 0, lunge: 0 };
 }
 
-function importedUnitFitSize(meshKey: string): number {
+/**
+ * Target height in world units for an imported unit model. These are real
+ * heights, not opaque scale factors: a footman stands 1.8 units tall against a
+ * 9-unit tier-1 keep, which is the ratio that makes a keep read as a keep.
+ */
+function importedUnitHeight(meshKey: string): number {
   switch (meshKey) {
     case 'lightCavalry':
     case 'cavalry':
     case 'knight':
     case 'paladin':
     case 'horseArcher':
+      return 2.4;
     case 'camelRider':
     case 'camelArcher':
-      return 1.45;
+      return 2.6;
     case 'elephant':
-      return 2.5;
+      return 4.2;
     case 'beast':
-      return 2.0;
-    case 'cart':
+      return 2.6;
+    case 'siegeTower':
+      return 4.5;
     case 'ram':
     case 'catapult':
     case 'trebuchet':
     case 'ballista':
     case 'bombard':
-    case 'siegeTower':
     case 'rocketCart':
-      return 1.8;
-    case 'banner':
-    case 'drum':
-    case 'monk':
-    case 'support':
-      return 1.05;
+      return 2.6;
+    case 'cart':
+      return 1.6;
+    case 'champion':
+    case 'golem':
+      return 2.0;
     default:
-      return 0.9;
+      // Every humanoid on foot — workers, infantry, archers, monks, bannermen.
+      return 1.8;
   }
 }
 
@@ -208,7 +215,7 @@ export class UnitView {
       this.importedUnits.set(unit.id, imported);
       loadModelForUnit(unit.def.id, unit.def.mesh, unit.def.faction, {
         teamColor: teamColor.getHex(),
-        fitSize: importedUnitFitSize(unit.def.mesh),
+        fitHeight: importedUnitHeight(unit.def.mesh),
       })
         .then((model) => {
           const current = this.importedUnits.get(unit.id);

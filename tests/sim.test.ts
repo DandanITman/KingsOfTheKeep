@@ -8,8 +8,9 @@ import { MatchSim } from '@/sim/MatchSim';
 import { BotController } from '@/ai/BotController';
 import { createBotProfile } from '@/ai/BotProfile';
 import { counterMultiplier } from '@/sim/systems/CombatSystem';
-import { Unit } from '@/sim/entities/Entity';
+import { Building, Unit } from '@/sim/entities/Entity';
 import { getUnit } from '@/data/units';
+import { ANNIHILATION_GRACE_SECS } from '@/data/balance';
 import { migrate, defaultSave } from '@/core/save/SaveData';
 import type { MatchSetup } from '@/data/types';
 import { PLAYABLE_FACTIONS } from '@/data/types';
@@ -28,6 +29,10 @@ function makeSetup(overrides: Partial<MatchSetup> = {}): MatchSetup {
     seed: 12345,
     ...overrides,
   };
+}
+
+function makeSim(overrides: Partial<MatchSetup> = {}): { sim: MatchSim } {
+  return { sim: new MatchSim(makeSetup(overrides), new EventBus()) };
 }
 
 describe('headless sim', () => {
@@ -82,6 +87,93 @@ describe('combat math', () => {
     const archer = new Unit(1, { x: 1, y: 0 }, getUnit('eu_shortbow_archer'), 70);
     expect(counterMultiplier(knight, archer)).toBeGreaterThan(1.5);
   });
+
+  it('shields blunt arrows rather than weakening the shield unit', () => {
+    const archer = new Unit(0, { x: 0, y: 0 }, getUnit('eu_shortbow_archer'), 70);
+    const shieldman = new Unit(1, { x: 1, y: 0 }, getUnit('eu_shieldman'), 70);
+    const swordsman = new Unit(1, { x: 1, y: 0 }, getUnit('eu_militia_swordsman'), 70);
+    // Archers do less to a shielded target than to an unshielded one...
+    expect(counterMultiplier(archer, shieldman)).toBeLessThan(counterMultiplier(archer, swordsman));
+    // ...and the shield unit is not itself penalised for attacking archers.
+    expect(counterMultiplier(shieldman, archer)).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe('damage over time', () => {
+  it('applies dotOnHit from ranged attacks, not just melee', () => {
+    const { sim } = makeSim();
+    const state = sim.state;
+    // A ranged unit that carries dotOnHit, firing at an enemy in range.
+    const shooter = state.addUnit(
+      new Unit(0, { x: 20, y: 20 }, getUnit('me_fire_siphon_team'), 70),
+    );
+    const victim = state.addUnit(new Unit(1, { x: 22, y: 20 }, getUnit('eu_levy_spearman'), 70));
+    shooter.task = { kind: 'fight', targetId: victim.id, returnTo: { ...shooter.pos } };
+
+    // Long enough for the shot to fire and the projectile to land.
+    for (let i = 0; i < 60 && victim.dots.length === 0; i++) sim.tick();
+
+    expect(victim.dots.length).toBeGreaterThan(0);
+    expect(victim.dots[0].dps).toBe(getUnit('me_fire_siphon_team').dotOnHit!.dps);
+  });
+});
+
+describe('fortress loss condition', () => {
+  it('does not concede while the player still holds another finished fortress', () => {
+    const { sim } = makeSim();
+    const state = sim.state;
+    const original = state.fortressOf(0)!;
+    expect(original).toBeTruthy();
+
+    // A second, completed keep well away from the first.
+    const second = new Building(
+      0,
+      { x: original.pos.x + 20, y: original.pos.y + 20 },
+      original.def,
+      { x: Math.round(original.pos.x) + 20, y: Math.round(original.pos.y) + 20 },
+      true,
+    );
+    state.addBuilding(second);
+
+    // Raze the original.
+    original.hp = 0;
+    original.dead = true;
+
+    expect(state.fortressOf(0)?.id).toBe(second.id);
+    for (let i = 0; i < 30; i++) sim.tick();
+    expect(state.winner).toBeNull();
+  });
+
+  it('concedes once every fortress is gone', () => {
+    const { sim } = makeSim();
+    const state = sim.state;
+    const fortress = state.fortressOf(0)!;
+    fortress.hp = 0;
+    fortress.dead = true;
+
+    expect(state.fortressOf(0)).toBeNull();
+    for (let i = 0; i < 30; i++) sim.tick();
+    expect(state.winner).toBe(1);
+  });
+});
+
+describe('annihilation mode', () => {
+  it('does not eliminate a player who can still afford to rebuild', () => {
+    const { sim } = makeSim({ victoryMode: 'annihilation' });
+    const state = sim.state;
+    // Past the grace period, no army, no military buildings — but the starting
+    // resources cover a barracks, so this is a slow start, not an annihilation.
+    state.timeSecs = ANNIHILATION_GRACE_SECS + 60;
+    for (const u of state.units) if (u.def.role !== 'worker') u.dead = true;
+    for (const b of state.buildings) if (b.def.kind === 'military') b.dead = true;
+    state.players[0].resources.food = 9999;
+    state.players[0].resources.wood = 9999;
+    state.players[0].resources.gold = 9999;
+    state.players[0].resources.stone = 9999;
+
+    for (let i = 0; i < 30; i++) sim.tick();
+    expect(state.winner).toBeNull();
+  });
 });
 
 describe('save migration', () => {
@@ -89,5 +181,21 @@ describe('save migration', () => {
     const migrated = migrate({ some: 'garbage' });
     expect(migrated.version).toBe(defaultSave().version);
     expect(migrated.options.display.quality).toBeDefined();
+  });
+
+  it('backfills partially-populated option sections without losing user data', () => {
+    const current = defaultSave();
+    const migrated = migrate({
+      ...(current as unknown as Record<string, unknown>),
+      // A same-version save whose options object is present but incomplete used
+      // to survive migration untouched and then crash the app at boot.
+      options: { display: { quality: 'low' } },
+      decks: [{ id: 'deck_1', name: 'Mine', faction: 'european', cardIds: [] }],
+    });
+    expect(migrated.options.display.quality).toBe('low'); // user's choice preserved
+    expect(migrated.options.display.uiScale).toBeDefined(); // missing sibling filled
+    expect(migrated.options.audio.master).toBeDefined(); // missing section filled
+    expect(migrated.options.gameplay.beginnerTips).toBeDefined();
+    expect(migrated.decks).toHaveLength(1); // user data untouched
   });
 });

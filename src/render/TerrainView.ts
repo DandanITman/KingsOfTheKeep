@@ -3,8 +3,10 @@ import { Rng } from '@/core/Rng';
 import type { Biome, MapDef } from '@/data/types';
 import type { MatchState } from '@/sim/MatchState';
 import { ResourceNode } from '@/sim/entities/Entity';
+import { FOG_BLACK } from '@/sim/systems/FogSystem';
 import { box, cone, cylinder, group, mat, sphere } from './meshes/primitives';
 import { glbModelsEnabled, loadModelForResourceNode, modelIdForResourceNode } from './assets/ModelLibrary';
+import { biomeFogColor } from './Renderer';
 
 interface BiomeGround {
   /** Dark→light gradient the color noise blends across. */
@@ -85,6 +87,81 @@ function makeGroundDetailTexture(seed: number, blades: boolean): THREE.Texture {
 }
 
 /** Cheap deterministic 2D value noise (two octaves), used for ground tinting. */
+/** How far past the map bounds the surrounding land extends, in world units. */
+const SKIRT_MARGIN = 320;
+
+/**
+ * How far the fog-of-war plane overhangs the map to cover the near apron.
+ * Kept well inside SKIRT_MARGIN so the flat fog plane never floats noticeably
+ * above the apron as it falls away.
+ */
+export const SKIRT_OVERHANG = 90;
+
+/**
+ * The playable plane used to stop dead at the map bounds, so at max zoom-out you
+ * saw the geometry end and the empty void beyond it. This apron continues the
+ * land outward and slopes it gently away, reading as a raised tableland whose
+ * surroundings fall off into the distance. Combined with `fogColor === horizon`
+ * in `Renderer`, the far edge dissolves into the sky instead of terminating.
+ *
+ * Deliberately a low-resolution grid with no detail texture and no shadow
+ * participation — it is scenery, never walked on, and costs a few hundred
+ * triangles.
+ */
+function buildSkirt(
+  w: number,
+  h: number,
+  palette: BiomeGround,
+  noise: (x: number, y: number) => number,
+  hazeColor: number,
+): THREE.Mesh {
+  const outerW = w + SKIRT_MARGIN * 2;
+  const outerH = h + SKIRT_MARGIN * 2;
+  const geo = new THREE.PlaneGeometry(outerW, outerH, 40, 40);
+  geo.rotateX(-Math.PI / 2);
+  geo.translate(w / 2, 0, h / 2);
+
+  const pos = geo.attributes.position;
+  const colors = new Float32Array(pos.count * 3);
+  const low = new THREE.Color(palette.low);
+  const base = new THREE.Color(palette.base);
+  const haze = new THREE.Color(hazeColor);
+  const c = new THREE.Color();
+
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const z = pos.getZ(i);
+    // Distance outside the map rectangle: 0 within bounds, growing outward.
+    const outX = Math.max(0, Math.max(-x, x - w));
+    const outZ = Math.max(0, Math.max(-z, z - h));
+    const out = Math.hypot(outX, outZ);
+    const t = Math.min(1, out / SKIRT_MARGIN);
+    // Sit just below the playable ground inside the bounds so it never z-fights
+    // with it, then fall away. The curve stays near-flat for the first stretch
+    // (so the fog plane overhanging it doesn't visibly hover) and only drops
+    // steeply far out, where nothing but the horizon is left to see.
+    pos.setY(i, -0.35 - Math.pow(t, 2.2) * 26);
+    // Aerial perspective: wash toward the horizon colour with distance. Without
+    // this the apron reads as a bright green field that the (hazed) playable map
+    // sits on top of, which looks worse than the void it replaced.
+    c.copy(base).lerp(low, 0.3);
+    c.lerp(haze, 0.3 + Math.pow(t, 0.8) * 0.65);
+    const shade = 1 + (noise(x * 0.35 + 19, z * 0.35 + 61) - 0.5) * 0.06;
+    colors[i * 3] = c.r * shade;
+    colors[i * 3 + 1] = c.g * shade;
+    colors[i * 3 + 2] = c.b * shade;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geo.computeVertexNormals();
+
+  const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true }));
+  mesh.receiveShadow = false;
+  mesh.frustumCulled = false;
+  // Draw before everything else so the playable ground always wins the overlap.
+  mesh.renderOrder = -1;
+  return mesh;
+}
+
 function makeNoise(seed: number): (x: number, y: number) => number {
   const hash = (ix: number, iy: number): number => {
     let h = (ix * 374761393 + iy * 668265263 + seed * 144665) | 0;
@@ -159,6 +236,8 @@ export class TerrainView {
     const ground = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true, map: detail }));
     ground.receiveShadow = true;
     this.root.add(ground);
+
+    this.root.add(buildSkirt(w, h, palette, noise, biomeFogColor(map.terrain.biome)));
 
     this.addGroundAccents(map, palette);
     this.scatterDoodads(map, rng, palette);
@@ -502,7 +581,7 @@ export class TerrainView {
     if (!this.useImportedModels) return;
     if (!modelIdForResourceNode(node.nodeType, biome)) return;
     loadModelForResourceNode(node.nodeType, biome, {
-      fitSize: this.resourceFitSize(node.nodeType),
+      fitWidth: this.resourceFitSize(node.nodeType),
       variantIndex: node.id,
     })
       .then((model) => {
@@ -515,15 +594,21 @@ export class TerrainView {
       });
   }
 
-  /** Shrink depleting nodes; remove exhausted ones. */
+  /** Shrink depleting nodes; remove exhausted ones; hide unexplored ones. */
   update(): void {
+    const fog = this.state.fog;
     for (const node of this.state.nodes) {
       const mesh = this.nodeMeshes.get(node.id);
       if (!mesh) continue;
       if (node.dead || node.amount <= 0) {
         mesh.removeFromParent();
         this.nodeMeshes.delete(node.id);
+        continue;
       }
+      // Resource nodes are tall enough to stand proud of the fog plane, so
+      // hide the ones the player has never seen rather than let them advertise
+      // themselves through the haze.
+      mesh.visible = fog.valueAt(node.pos, 0) !== FOG_BLACK;
     }
   }
 
