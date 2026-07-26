@@ -176,6 +176,80 @@ describe('annihilation mode', () => {
   });
 });
 
+describe('order queue', () => {
+  it('queued orders run in sequence; an unqueued order discards them', () => {
+    const { sim } = makeSim();
+    const state = sim.state;
+    const unit = state.addUnit(new Unit(0, { x: 30, y: 30 }, getUnit('eu_levy_spearman'), 70));
+
+    sim.enqueue({ kind: 'directOrder', player: 0, unitIds: [unit.id], dest: { x: 34, y: 30 }, attackMove: false });
+    sim.enqueue({ kind: 'directOrder', player: 0, unitIds: [unit.id], dest: { x: 38, y: 30 }, attackMove: false, queue: true });
+    sim.tick();
+    expect(unit.orders).toHaveLength(1);
+    expect(unit.task.kind).toBe('move');
+
+    // Run until the first leg completes and the queue advances.
+    for (let i = 0; i < 400 && unit.orders.length > 0; i++) sim.tick();
+    expect(unit.orders).toHaveLength(0);
+
+    // A plain order wipes anything still pending.
+    sim.enqueue({ kind: 'directOrder', player: 0, unitIds: [unit.id], dest: { x: 44, y: 30 }, attackMove: false, queue: true });
+    sim.tick();
+    expect(unit.orders.length + (unit.task.kind === 'move' ? 1 : 0)).toBeGreaterThan(0);
+    sim.enqueue({ kind: 'directOrder', player: 0, unitIds: [unit.id], dest: { x: 30, y: 30 }, attackMove: false });
+    sim.tick();
+    expect(unit.orders).toHaveLength(0);
+  });
+
+  it('stop clears the queue and hold position is a toggle', () => {
+    const { sim } = makeSim();
+    const state = sim.state;
+    const unit = state.addUnit(new Unit(0, { x: 30, y: 30 }, getUnit('eu_levy_spearman'), 70));
+
+    sim.enqueue({ kind: 'directOrder', player: 0, unitIds: [unit.id], dest: { x: 40, y: 30 }, attackMove: false });
+    sim.enqueue({ kind: 'directOrder', player: 0, unitIds: [unit.id], dest: { x: 50, y: 30 }, attackMove: false, queue: true });
+    sim.tick();
+    expect(unit.orders).toHaveLength(1);
+
+    sim.enqueue({ kind: 'stopUnits', player: 0, unitIds: [unit.id] });
+    sim.tick();
+    expect(unit.orders).toHaveLength(0);
+    expect(unit.holdPosition).toBe(false);
+
+    sim.enqueue({ kind: 'holdPosition', player: 0, unitIds: [unit.id] });
+    sim.tick();
+    expect(unit.holdPosition).toBe(true);
+    sim.enqueue({ kind: 'holdPosition', player: 0, unitIds: [unit.id] });
+    sim.tick();
+    expect(unit.holdPosition).toBe(false);
+  });
+
+  it('a holding unit does not chase a target the same unit would otherwise close on', () => {
+    // Control: an ordinary unit closes the gap...
+    const free = (() => {
+      const { sim } = makeSim();
+      const u = sim.state.addUnit(new Unit(0, { x: 30, y: 30 }, getUnit('eu_militia_swordsman'), 70));
+      sim.state.addUnit(new Unit(1, { x: 36, y: 30 }, getUnit('eu_militia_swordsman'), 70));
+      const startX = u.pos.x;
+      for (let i = 0; i < 60; i++) sim.tick();
+      return Math.abs(u.pos.x - startX);
+    })();
+    expect(free).toBeGreaterThan(1);
+
+    // ...while the same setup on hold stays put.
+    const { sim } = makeSim();
+    const holder = sim.state.addUnit(new Unit(0, { x: 30, y: 30 }, getUnit('eu_militia_swordsman'), 70));
+    // Well outside melee reach but inside line of sight.
+    sim.state.addUnit(new Unit(1, { x: 36, y: 30 }, getUnit('eu_militia_swordsman'), 70));
+    sim.enqueue({ kind: 'holdPosition', player: 0, unitIds: [holder.id] });
+    sim.tick();
+
+    const startX = holder.pos.x;
+    for (let i = 0; i < 60; i++) sim.tick();
+    expect(Math.abs(holder.pos.x - startX)).toBeLessThan(0.5);
+  });
+});
+
 describe('save migration', () => {
   it('regenerates corrupt/ancient saves and backfills fields', () => {
     const migrated = migrate({ some: 'garbage' });

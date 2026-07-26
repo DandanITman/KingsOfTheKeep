@@ -39,6 +39,8 @@ export function macroCommandSystem(state: MatchState): void {
 /** Is this unit available for macro steering? */
 function macroSteerable(u: Unit): boolean {
   if (u.dead || u.def.role === 'worker') return false;
+  // Explicitly held or shift-queued units are under manual control.
+  if (u.holdPosition || u.orders.length > 0) return false;
   if (u.task.kind === 'rout' || u.task.kind === 'garrison' || u.task.kind === 'trade') return false;
   if ((u.task.kind === 'move' || u.task.kind === 'gather') && u.task.pinned) return false;
   return true;

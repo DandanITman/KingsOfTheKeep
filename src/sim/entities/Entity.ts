@@ -52,6 +52,17 @@ export class Unit extends Entity {
   readonly defId: string;
   readonly def: UnitDef;
   task: UnitTask = { kind: 'idle' };
+  /**
+   * Shift-queued follow-up orders, drained one at a time as `task` completes.
+   * Any un-queued order clears this — a plain right-click always means "forget
+   * what I said and do this now".
+   */
+  orders: UnitTask[] = [];
+  /**
+   * Hold position: the unit fights what comes into range but never advances,
+   * and auto-systems leave it where it stands.
+   */
+  holdPosition = false;
   assignment: Assignment = 'defend';
   morale: number;
   attackCooldown = 0;

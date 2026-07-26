@@ -9,7 +9,7 @@ import type { BuildingDef, Card } from '@/data/types';
 import type { Command, PlayerId } from '../commands';
 import type { MatchSim } from '../MatchSim';
 import type { MatchState } from '../MatchState';
-import { Building, Unit } from '../entities/Entity';
+import { Building, Unit, type UnitTask } from '../entities/Entity';
 import { registerCommandHandler } from './CommandSystem';
 import { tryQueueUnit } from './TrainingSystem';
 import { castAbility } from './AbilitySystem';
@@ -177,9 +177,16 @@ export function registerCardHandlers(): void {
     for (const id of cmd.unitIds) {
       const u = sim.state.unit(id);
       if (!u || u.player !== cmd.player || u.def.role !== 'worker') continue;
-      u.task = site.underConstruction
+      const task: UnitTask = site.underConstruction
         ? { kind: 'build', buildingId: site.id, pinned: true }
         : { kind: 'repair', buildingId: site.id, pinned: true };
+      if (cmd.queue) {
+        u.orders.push(task);
+      } else {
+        u.orders.length = 0;
+        u.holdPosition = false;
+        u.task = task;
+      }
     }
   });
 

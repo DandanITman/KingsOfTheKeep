@@ -1,5 +1,58 @@
 # Changelog
 
+## Overhaul phase 2: control groups, hotkeys, queued orders, stop and hold
+
+The game previously had no RTS control layer at all — the entire keyboard
+vocabulary was WASD, Q/E, Space, R, Esc and F8. Every order meant a mouse trip
+to the HUD, there was no way to recall a group of units, and each new order
+discarded the previous one outright.
+
+**New `src/app/screens/MatchHotkeys.ts`** owns the keyboard command layer. It
+lives in the app layer, never the sim: every action it takes goes through
+`MatchSim.enqueue`, the same command seam the bot and the mouse already use, so
+the simulation stays DOM-free and the keyboard cannot desync it. Keys are
+ignored while a text field has focus.
+
+- **Control groups.** `Ctrl+1-9` assigns, `1-9` recalls, pressing the same group
+  twice within 400ms centres the camera on it. Dead ids are pruned each frame so
+  a group never resurrects a stale selection.
+- **Selection shortcuts.** `Ctrl+A` selects your whole army (military only —
+  workers stay on the gold), `.` / `,` cycle idle workers and centre on each,
+  `` ` `` jumps to your keep without disturbing the selection.
+- **Card bar hotkeys.** `Q W E T A D F G Z X C V` play the matching slot, with
+  the key drawn as a badge on each card tile. Pressing a second card key swaps
+  the pending placement rather than stacking modes. The set deliberately skips
+  S, H and R (stop, hold, rotate-ghost): binding those by context would mean the
+  same key doing different things depending on what happened to be selected.
+
+**Shift-queued orders.** `Unit` gained an `orders: UnitTask[]` queue;
+`directOrder`, `directGather` and `directBuild` take a `queue` flag set by
+shift+right-click. The queue drains in one place — a single pass in
+`MatchSim.tick` that advances any unit sitting idle with orders pending — so
+every path that finishes a task by going idle (arrival, gather completion, a
+dead fight target) advances the queue for free, with no per-system changes. A
+plain right-click still discards everything pending, which is what a player
+means by it.
+
+**Stop and hold position.** New `stopUnits` and `holdPosition` commands, bound to
+`S` and `H`, distinct from the global emergency STOP in the macro panel. Hold is
+a toggle and is genuinely enforced rather than being a flag nothing reads: a
+holding unit only acquires targets already inside its weapon range (acquiring at
+full line-of-sight would flip it between fight and idle every few ticks against
+something it will never walk toward), never chases, and is skipped by the macro
+steering and worker-allocation systems. Shift-queued units are likewise left
+alone by those auto-systems.
+
+**Documentation.** Added `src/data/controls.ts` as the single dependency-free
+source of truth for bindings. The setup screen's Battle Codex now renders the
+full reference — `showModal` accepts an element as well as a string — and the
+README control table was expanded to match.
+
+Typecheck clean; vitest 41 → 44 tests. The hold-position test asserts both
+halves (an ordinary unit closes the gap, the same setup on hold does not) so it
+cannot pass vacuously. Control groups, card hotkeys and the codex were verified
+in a browser.
+
 ## Overhaul phase 1: unit scale, fog of war, world edge, dead wiring, sim fixes
 
 First pass of a wider graphics/mechanics/playability overhaul. This phase fixes

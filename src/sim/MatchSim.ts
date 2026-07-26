@@ -198,7 +198,15 @@ export class MatchSim {
     s.fog.update(s);
     victorySystem(s);
 
-    // 4. Cooldowns.
+    // 4. Drain shift-queued orders. Doing it here, once, rather than inside each
+    // system means every path that finishes a task by going idle — arrival,
+    // gather completion, a dead fight target — advances the queue for free.
+    for (const u of s.units) {
+      if (u.dead || u.orders.length === 0 || u.task.kind !== 'idle') continue;
+      u.task = u.orders.shift()!;
+    }
+
+    // 5. Cooldowns.
     for (const p of s.players) {
       for (const slot of p.cards) if (slot.cooldownTicks > 0) slot.cooldownTicks--;
     }

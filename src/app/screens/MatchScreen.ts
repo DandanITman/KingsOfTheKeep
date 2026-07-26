@@ -28,6 +28,7 @@ import { FOG_VISIBLE, FOG_BLACK } from '@/sim/systems/FogSystem';
 import { hideCardPopup } from '@/ui/cards/CardHover';
 import { MatchInput } from './MatchInput';
 import { MatchSelection } from './MatchSelection';
+import { MatchHotkeys } from './MatchHotkeys';
 import type { Screen, ScreenManager } from '../ScreenManager';
 
 /**
@@ -68,6 +69,7 @@ export class MatchRunner {
   private effects: EffectsView;
   private overlay: OverlayCanvas;
   private selection: MatchSelection;
+  private hotkeys: MatchHotkeys;
   private selectionPanel: SelectionPanel;
   private alertFeed: AlertFeed;
   private flagView: FlagView;
@@ -178,6 +180,14 @@ export class MatchRunner {
     this.alertFeed = new AlertFeed(this.bus, (pos) => this.rig.jumpTo(pos));
     this.macroPanel = new MacroPanel(this.sim, (flagType) => this.input.startFlagPlacing(flagType));
     this.objectivesPanel = new ObjectivesPanel(state);
+    this.hotkeys = new MatchHotkeys({
+      sim: this.sim,
+      selection: this.selection,
+      rig: this.rig,
+      cardBar: this.cardBar,
+      input: this.input,
+      homePos: () => state.fortressOf(0)?.pos ?? null,
+    });
     this.input.onFlagPlace = (flagType, world) => {
       this.sim.enqueue({ kind: 'placeFlag', player: 0, flagType, pos: world });
     };
@@ -320,6 +330,7 @@ export class MatchRunner {
     this.macroPanel.update();
     this.objectivesPanel.update();
     this.selection.prune();
+    this.hotkeys.prune();
     this.overlay.update(alpha, saveStore.data.options.display);
     this.topBar.update();
     this.economyPanel.update();
@@ -406,6 +417,7 @@ export class MatchRunner {
     window.removeEventListener('keydown', this.escHandler);
     if (this.devKeyHandler) window.removeEventListener('keydown', this.devKeyHandler);
     import('@/audio/AudioManager').then(({ audio }) => audio.detachMatch());
+    this.hotkeys.dispose();
     this.input.dispose();
     this.cardBar.dispose();
     this.rig.dispose();

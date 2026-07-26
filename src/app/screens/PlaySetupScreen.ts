@@ -3,11 +3,31 @@ import { showModal } from '@/ui/components/Modal';
 import { saveStore } from '@/core/save/SaveStore';
 import { factionList } from '@/data/factions';
 import { MAPS } from '@/data/maps';
+import { CONTROL_GROUPS } from '@/data/controls';
 import type { BotDifficulty, FactionId, MatchSetup, VictoryMode } from '@/data/types';
 import { icon } from '@/ui/icons';
 import type { Screen, ScreenManager } from '../ScreenManager';
 
 type PlayableFaction = Exclude<FactionId, 'neutral'>;
+
+/** Setup guidance plus the full control reference, for the Battle Codex modal. */
+function buildCodexBody(): HTMLElement {
+  const body = el('div', { className: 'codex' }, [
+    el('p', {
+      text:
+        'Choose a map, your faction, your opponent, and a difficulty, then set the battle rules: ' +
+        'which of your decks to bring, how the match is won, starting resources, and game speed.',
+    }),
+  ]);
+  for (const group of CONTROL_GROUPS) {
+    const rows = el('dl', { className: 'codex-keys' });
+    for (const binding of group.bindings) {
+      rows.append(el('dt', { text: binding.keys }), el('dd', { text: binding.action }));
+    }
+    body.append(el('h3', { className: 'codex-heading', text: group.title }), rows);
+  }
+  return body;
+}
 
 const MAP_ART: Record<string, string> = {
   greenvaleCrossing: '/assets/ui/play-setup/greenvale-crossing.png',
@@ -52,7 +72,8 @@ export function createPlaySetupScreen(screens: ScreenManager): Screen {
     playerFaction: 'european',
     botFaction: 'european',
     botDifficulty: 'medium',
-    // Match configuration remains deliberately fixed for the focused setup flow.
+    // Defaults; deck, victory mode, resources and speed are all set by the
+    // battle-rules row below.
     playerDeckId: 'starter',
     botDeckId: 'preset',
     speed: 1,
@@ -76,9 +97,7 @@ export function createPlaySetupScreen(screens: ScreenManager): Screen {
     el('div', { className: 'setup-utility-actions' }, [
       iconButton('Options', 'gears', () => screens.show('options', { returnTo: 'playSetup' })),
       iconButton('Battle Codex', 'setupBook', () => {
-        showModal('Battle Codex', 'Choose a map, your faction, your opponent, and a difficulty, then set the battle rules below: which of your decks to bring, how the match is won, starting resources, and game speed.', [
-          { label: 'Understood', primary: true },
-        ]);
+        showModal('Battle Codex', buildCodexBody(), [{ label: 'Understood', primary: true }]);
       }),
       iconButton('Return to Main Menu', 'menuExit', () => screens.show('mainMenu')),
     ]),

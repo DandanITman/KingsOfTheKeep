@@ -110,7 +110,13 @@ export function combatSystem(state: MatchState): void {
     // Engagement checks (cheap, periodic).
     if (acquireTick && unit.def.role !== 'worker' && unit.def.damage > 0) {
       if (task.kind === 'idle') {
-        const target = acquireTarget(state, unit, unit.def.los);
+        // A held unit only picks targets already inside its weapon range —
+        // acquiring at full LOS would make it flip between fight and idle every
+        // few ticks against something it has no intention of walking toward.
+        const reach = unit.holdPosition
+          ? unitStat(state, unit, unit.def.range, 'range') + 0.5
+          : unit.def.los;
+        const target = acquireTarget(state, unit, reach);
         if (target) unit.task = { kind: 'fight', targetId: target.id, returnTo: { ...unit.pos } };
       } else if (task.kind === 'move' && task.attackMove) {
         const target = acquireTarget(state, unit, unit.def.los);
@@ -167,6 +173,11 @@ export function combatSystem(state: MatchState): void {
       const targetRadius = target instanceof Building ? Math.max(target.def.footprint[0], target.def.footprint[1]) / 2 : 0.4;
       const d = dist(unit.pos, target.pos) - targetRadius;
       if (d > range) {
+        // Hold position: shoot what walks into range, never chase it.
+        if (unit.holdPosition) {
+          unit.task = { kind: 'idle' };
+          continue;
+        }
         stepToward(state, unit, target.pos, range + targetRadius);
       } else {
         unit.facing = Math.atan2(target.pos.y - unit.pos.y, target.pos.x - unit.pos.x);

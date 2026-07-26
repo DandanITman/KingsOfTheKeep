@@ -28,13 +28,43 @@ Open the printed local URL. Chrome/Edge/Firefox on desktop recommended.
 
 ## Controls
 
+The full reference is also in-game under **Battle Codex** on the play setup screen.
+
+**Camera**
+
 | Input | Action |
 |---|---|
 | WASD / edge scroll | Move camera |
 | Q/E or middle-drag | Rotate; wheel zooms |
 | Space | Jump to your keep |
+| ` | Jump to your keep, keeping the selection |
+
+**Selection**
+
+| Input | Action |
+|---|---|
 | Left click / drag | Select units |
+| Double click | Select all nearby of that type |
+| Shift+click | Add to selection |
+| Ctrl+1–9 | Assign control group |
+| 1–9 | Recall control group (press twice to centre on it) |
+| Ctrl+A | Select your whole army |
+| . / , | Cycle idle workers |
+
+**Orders**
+
+| Input | Action |
+|---|---|
 | Right click | Contextual order (move / attack / gather / build / repair) |
+| Shift+right click | Queue the order after the current one |
+| S | Stop |
+| H | Hold position (toggle) |
+
+**Cards & building**
+
+| Input | Action |
+|---|---|
+| Q W E T A D F G Z X C V | Play the matching card |
 | R | Rotate building ghost while placing |
 | Shift+click (placing) | Keep placing more of the same building |
 | Esc | Pause menu / cancel placement |
