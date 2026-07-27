@@ -2,7 +2,12 @@
 
 A 3D browser-based macro RTS: build your economy, construct your base, forge an army from cards, and command it with high-level orders — then break the enemy fortress before they break yours.
 
-Built with TypeScript, Three.js, and Vite. All art is procedural low-poly; all audio is synthesized. No assets, no backend — everything runs and saves locally.
+Built with TypeScript, Three.js, and Vite. Every unit, building and prop in the
+3D world is generated in code — no model files, no textures, no third-party art.
+All audio is synthesized. No backend: everything runs and saves locally.
+
+See [`docs/ART_DIRECTION.md`](docs/ART_DIRECTION.md) for how the procedural art
+system works and how to add to it.
 
 ## Play
 

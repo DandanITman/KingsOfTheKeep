@@ -13,13 +13,20 @@
  *      mis-sized mesh fails the build rather than being silently rescaled.
  *   3. Every mesh is grounded — its lowest point sits at y = 0.
  *
- * The values below match the scale the game has always rendered at (measured
- * from the existing procedural builders), with a few deliberate corrections
- * noted inline.
+ * Buildings are close to the scale the game has always rendered at; units were
+ * deliberately raised so they read at normal zoom (see MAN below).
  */
 
-/** Reference infantry height. Everything else is read against this. */
-export const MAN = 1.05;
+/**
+ * Reference infantry height. Everything else is read against this.
+ *
+ * Set against a 5.6-unit tier-1 keep, giving roughly a 1:4 ratio. An earlier
+ * 1.05 was faithful to the old procedural meshes but left units too small to
+ * pick out and command at normal zoom — in an RTS the units are what the player
+ * is actually looking at, so they get the benefit of the doubt over strict
+ * architectural realism.
+ */
+export const MAN = 1.4;
 
 /** A mesh's lowest point must sit within this of y = 0. */
 export const GROUND_EPS = 0.04;
@@ -29,42 +36,42 @@ export const HEIGHT_TOL = 0.12;
 
 export const UNIT_HEIGHT: Record<string, number> = {
   // On foot. The visual baseline.
-  worker: 1.0,
+  worker: 1.33,
   swordsman: MAN,
   spearman: MAN,
-  shieldman: 1.08,
+  shieldman: 1.44,
   archer: MAN,
   crossbow: MAN,
-  support: 1.06,
-  monk: 1.06,
-  banner: 1.05,
-  drum: 1.05,
-  champion: 1.22,
+  support: 1.41,
+  monk: 1.41,
+  banner: 1.4,
+  drum: 1.4,
+  champion: 1.63,
 
   // Mounted — must clear infantry unambiguously at RTS camera distance.
-  lightCavalry: 1.5,
-  horseArcher: 1.5,
-  cavalry: 1.47,
-  knight: 1.47,
-  paladin: 1.55,
-  camelRider: 1.6,
-  camelArcher: 1.6,
+  lightCavalry: 2.0,
+  horseArcher: 2.0,
+  cavalry: 1.96,
+  knight: 1.96,
+  paladin: 2.07,
+  camelRider: 2.13,
+  camelArcher: 2.13,
 
   // Beasts and constructs.
-  beast: 1.55,
-  golem: 1.6,
-  elephant: 1.96,
+  beast: 2.07,
+  golem: 2.13,
+  elephant: 2.61,
 
-  // Siege. These were conspicuously squat — a catapult at 0.63 was shorter than
-  // a kneeling man — so the throwing arms and frames now stand up properly.
-  cart: 0.8,
-  ram: 1.2,
-  bombard: 1.0,
-  ballista: 1.1,
-  rocketCart: 1.3,
-  catapult: 1.4,
-  trebuchet: 2.4,
-  siegeTower: 2.8,
+  // Siege. These were conspicuously squat in the old meshes — a catapult stood
+  // shorter than a kneeling man — so frames and throwing arms stand up properly.
+  cart: 1.07,
+  ram: 1.6,
+  bombard: 1.33,
+  ballista: 1.47,
+  rocketCart: 1.73,
+  catapult: 1.87,
+  trebuchet: 3.2,
+  siegeTower: 3.73,
 };
 
 export const BUILDING_HEIGHT: Record<string, number> = {

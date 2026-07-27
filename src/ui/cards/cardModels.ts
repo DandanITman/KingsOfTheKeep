@@ -8,7 +8,7 @@
 
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
-import { getArchetypeGeometry } from '@/render/meshes/unitMeshes';
+import { getArchetypeGeometry } from '@/render/art/units';
 import { buildBuilding } from '@/render/art';
 import { getUnit } from '@/data/units';
 import { getBuilding } from '@/data/buildings';
@@ -167,7 +167,7 @@ export function buildCardModel(card: Card, viewerFaction?: string): THREE.Object
   model = null;
   if (card.unitId) {
     const unit = getUnit(card.unitId);
-    const geo = getArchetypeGeometry(unit.mesh);
+    const geo = getArchetypeGeometry(unit.mesh, faction);
     const g = new THREE.Group();
     if (geo.body) g.add(new THREE.Mesh(geo.body, new THREE.MeshLambertMaterial({ vertexColors: true })));
     if (geo.team) g.add(new THREE.Mesh(geo.team, new THREE.MeshLambertMaterial({ color: factionColor(card.faction) })));

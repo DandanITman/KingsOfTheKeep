@@ -1,5 +1,78 @@
 # Changelog
 
+## Overhaul phase 3b + 4: procedural units, and every borrowed asset deleted
+
+Completes the art overhaul. Everything in the 3D world is now generated in
+code, and all third-party models are gone from the repository.
+
+**Units are faction-aware.** 136 units share only 29 mesh archetypes and
+`UnitDef.mesh` carries no faction, so a European serf, an Asian rice farmer, an
+African hearth worker and a Middle Eastern town worker were all literally the
+same mesh. Archetypes are now compiled per (archetype x faction) from a small
+parts vocabulary — body, headgear, shield, weapon, mount — with the faction
+supplying helm silhouette (kettle/kabuto/feather crown/turban), shield shape
+(kite/buckler/hide oval/round), blade curvature (straight through scimitar) and
+palette. `UnitView`'s instance pools are keyed by archetype *and* faction, so
+the two armies in a match render visibly differently while still drawing in a
+handful of calls.
+
+The action layer deliberately does **not** count toward a unit's declared
+height — otherwise a catapult would measure differently with its arm cocked than
+released, and the contract test would be measuring a pose rather than a unit.
+
+**Units were raised from a 1:5.6 ratio against the keep to roughly 1:4.** The
+old procedural scale was faithful to what the game had always rendered, but left
+units too small to pick out and command at normal zoom. In an RTS the units are
+what the player is actually looking at, so they win over architectural realism.
+
+**Deleted (~192 MB):**
+
+- `public/assets/models/` — all 89 GLBs
+- `assets_raw/` — the raw downloads
+- `public/assets/textures/faction_materials/` — 24 MB that no code ever
+  referenced; there was never a `TextureLoader` call in the project
+- `public/assets/asset_manifest.json`
+- `src/render/assets/ModelLibrary.ts` — the whole GLB pipeline, including the
+  animation-clip retargeting, donor-rig borrowing and skeleton-aware bounds
+  machinery built to work around imported-model quirks
+- `src/render/meshes/{unitMeshes,buildingMeshes}.ts` — the legacy procedural
+  builders, now fully superseded
+- `tests/assets.test.ts` — replaced by `tests/art.test.ts` in phase 3a
+- `docs/ASSET_SOURCES.md`, `docs/FACTION_ASSET_ROADMAP.md`
+- The `?art=` and `?models=` switches, now that there is only one art system
+
+Verified before deleting that all 39 building mesh keys and all 29 unit mesh
+keys in the data layer resolve to a blueprint, so nothing falls through to a
+fallback that no longer exists.
+
+**Licensing.** `docs/ASSET_SOURCES.md` required in-game CC-BY credit lines that
+`CreditsScreen.ts` never actually carried — the build was shipping CC-BY art
+without the attribution its own policy mandated. Removing the third-party art
+resolves that permanently; the credits now state that all art is generated in
+code and all audio synthesized.
+
+**Added `docs/ART_DIRECTION.md`** covering the three rules the system enforces
+(declared heights not scale factors, geometry names a slot and the faction
+decides how it looks, nothing resolves silently), the per-faction shape grammar,
+and how to add a building or unit.
+
+`README.md`'s long-standing claim that "all art is procedural low-poly, no
+assets" is finally true.
+
+**Known follow-ups.** `public/assets/ui/` still ships 36 MB, of which
+`play-setup/` is 32 MB across 11 uncompressed PNGs — the same problem the
+menu-icon pass fixed at 1 MB → 100 KB each. It also still contains the Kenney
+Fantasy UI Borders pack (1.6 MB, CC0), used as 9-slice frames from CSS; that is
+third-party 2D UI chrome rather than game art, and was kept deliberately, but it
+is the last borrowed asset in the repo if you want it gone too.
+
+Note that deleting these files shrinks the working tree, not the git history.
+Reclaiming the ~192 MB from history would need `git filter-repo`, which rewrites
+every commit hash — not done, and probably not worth it.
+
+Typecheck clean; 56 → 50 tests (the 6 manifest tests are gone; the 12 art
+contract tests remain). All four factions verified in a browser.
+
 ## Overhaul phase 3a: procedural art system — scale contract, faction grammar, buildings
 
 The first half of replacing the imported-model art with one coherent,

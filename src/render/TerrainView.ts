@@ -5,7 +5,6 @@ import type { MatchState } from '@/sim/MatchState';
 import { ResourceNode } from '@/sim/entities/Entity';
 import { FOG_BLACK } from '@/sim/systems/FogSystem';
 import { box, cone, cylinder, group, mat, sphere } from './meshes/primitives';
-import { glbModelsEnabled, loadModelForResourceNode, modelIdForResourceNode } from './assets/ModelLibrary';
 import { biomeFogColor } from './Renderer';
 
 interface BiomeGround {
@@ -192,7 +191,6 @@ export class TerrainView {
   readonly root = new THREE.Group();
   private nodeMeshes = new Map<number, THREE.Group>();
   private state: MatchState;
-  private useImportedModels = glbModelsEnabled();
 
   constructor(state: MatchState) {
     this.state = state;
@@ -289,7 +287,6 @@ export class TerrainView {
       g.position.set(node.pos.x, 0, node.pos.y);
       this.root.add(g);
       this.nodeMeshes.set(node.id, g);
-      this.upgradeResourceNode(g, node, map.terrain.biome);
     }
 
     // Objective markers (simple for now; FlagView adds player flags).
@@ -559,39 +556,6 @@ export class TerrainView {
     }
     g.traverse((o) => o instanceof THREE.Mesh && (o.castShadow = true));
     return g;
-  }
-
-  private resourceFitSize(nodeType: ResourceNode['nodeType']): number {
-    switch (nodeType) {
-      case 'forest':
-        return 3.7;
-      case 'gold':
-      case 'stone':
-        return 2.0;
-      case 'berries':
-        return 1.8;
-      case 'farm':
-        return 2.4;
-      default:
-        return 1.5;
-    }
-  }
-
-  private upgradeResourceNode(g: THREE.Group, node: ResourceNode, biome: Biome): void {
-    if (!this.useImportedModels) return;
-    if (!modelIdForResourceNode(node.nodeType, biome)) return;
-    loadModelForResourceNode(node.nodeType, biome, {
-      fitWidth: this.resourceFitSize(node.nodeType),
-      variantIndex: node.id,
-    })
-      .then((model) => {
-        if (!model || this.nodeMeshes.get(node.id) !== g) return;
-        g.clear();
-        g.add(model);
-      })
-      .catch(() => {
-        // Procedural resource nodes remain in place on any asset failure.
-      });
   }
 
   /** Shrink depleting nodes; remove exhausted ones; hide unexplored ones. */

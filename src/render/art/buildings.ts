@@ -549,5 +549,24 @@ function missingMarker(): THREE.Group {
   return g;
 }
 
+/**
+ * Construction scaffold shown while a building is going up. Lives here rather
+ * than with the buildings so nothing outside the art system needs the old mesh
+ * modules.
+ */
+export function buildScaffoldMesh(footprint: [number, number]): THREE.Group {
+  const [w, d] = footprint;
+  const nodes: Node[] = [
+    ...slab({ w: w * 0.9, h: 0.25, d: d * 0.9, slot: 'wood', y: 0.12 }),
+  ];
+  for (const x of [-w * 0.35, w * 0.35]) {
+    for (const z of [-d * 0.35, d * 0.35]) {
+      nodes.push(...post({ r: 0.06, h: 1.0, slot: 'woodDark', x, y: 0.5, z, sides: 4 }));
+    }
+  }
+  bakeAo(nodes, styleFor('neutral').palette);
+  return mergeToGroup(nodes, 0xffffff);
+}
+
 export { measure as measureNodes };
 export type { Node, ArtFactionId };

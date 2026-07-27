@@ -1,10 +1,8 @@
 import * as THREE from 'three';
 import type { MatchState } from '@/sim/MatchState';
 import { Building } from '@/sim/entities/Entity';
-import { buildScaffoldMesh } from './meshes/buildingMeshes';
-import { artMode, buildBuilding } from './art';
-import { banner } from './meshes/primitives';
-import { factionSlug, glbModelsEnabled, loadModelById, loadModelForMesh } from './assets/ModelLibrary';
+import { buildBuilding } from './art';
+import { buildScaffoldMesh } from './art/buildings';
 
 interface Tracked {
   mesh: THREE.Group;
@@ -37,66 +35,6 @@ interface Puff {
   lifeMs: number;
   drift: number;
 }
-
-interface PropSpec {
-  id: string;
-  x: number;
-  z: number;
-  fitWidth: number;
-  y?: number;
-  rotation?: number;
-}
-
-const BUILDING_PROPS: Record<string, Record<string, PropSpec[]>> = {
-  european: {
-    keepEuropean: [
-      { id: 'european_banner_prop', x: -1.5, z: -1.3, fitWidth: 0.65, rotation: -0.25 },
-      { id: 'european_banner_prop', x: 1.5, z: -1.3, fitWidth: 0.65, rotation: 0.25 },
-    ],
-    guildHall: [{ id: 'universal_barrel', x: -1.0, z: 0.9, fitWidth: 0.45 }],
-    stable: [{ id: 'universal_wood_crate', x: 1.1, z: 0.7, fitWidth: 0.45, rotation: 0.7 }],
-  },
-  middle_eastern: {
-    keepMiddleEastern: [
-      { id: 'middle_eastern_fire_pot_prop', x: -1.2, z: -1.1, fitWidth: 0.45 },
-      { id: 'middle_eastern_fire_pot_prop', x: 1.2, z: -1.1, fitWidth: 0.45 },
-    ],
-    bazaar: [
-      { id: 'universal_wood_crate', x: -1.0, z: 0.8, fitWidth: 0.45 },
-      { id: 'universal_barrel', x: 1.0, z: 0.8, fitWidth: 0.45 },
-    ],
-    fireOilFoundry: [
-      { id: 'middle_eastern_fire_pot_prop', x: -0.9, z: 0.9, fitWidth: 0.5 },
-      { id: 'middle_eastern_fire_pot_prop', x: 0.9, z: 0.9, fitWidth: 0.5 },
-    ],
-    domeTower: [{ id: 'middle_eastern_fire_pot_prop', x: 0.0, z: -0.95, fitWidth: 0.42 }],
-  },
-  asian: {
-    keepAsian: [
-      { id: 'asian_lantern_prop', x: -1.3, z: -1.1, fitWidth: 0.35 },
-      { id: 'asian_lantern_prop', x: 1.3, z: -1.1, fitWidth: 0.35 },
-    ],
-    temple: [
-      { id: 'asian_lantern_prop', x: -0.9, z: 0.9, fitWidth: 0.35 },
-      { id: 'asian_lantern_prop', x: 0.9, z: 0.9, fitWidth: 0.35 },
-    ],
-    imperialAcademy: [{ id: 'asian_lantern_prop', x: 0.0, z: -1.1, fitWidth: 0.35 }],
-    bambooWatchpost: [{ id: 'asian_lantern_prop', x: 0.6, z: -0.6, fitWidth: 0.3 }],
-  },
-  african: {
-    keepAfrican: [
-      { id: 'african_banner_textile', x: -1.4, z: -1.2, fitWidth: 0.6 },
-      { id: 'african_banner_textile', x: 1.4, z: -1.2, fitWidth: 0.6 },
-    ],
-    drumCircle: [
-      { id: 'african_war_drum_prop', x: -0.8, z: 0.5, fitWidth: 0.45 },
-      { id: 'african_war_drum_prop', x: 0.8, z: 0.5, fitWidth: 0.45 },
-    ],
-    herdingGrounds: [{ id: 'african_round_hut', x: 1.2, z: -0.8, fitWidth: 1.0 }],
-    warriorLodge: [{ id: 'african_banner_textile', x: 0.0, z: -1.0, fitWidth: 0.55 }],
-    sunfireYard: [{ id: 'african_war_drum_prop', x: -1.0, z: 0.9, fitWidth: 0.45 }],
-  },
-};
 
 /**
  * One Group per building (buildings are few). Under-construction buildings
@@ -138,21 +76,6 @@ export class BuildingView {
     return SMOKERS[b.def.mesh] ?? null;
   }
 
-  private attachAssetProps(b: Building, t: Tracked, faction: string): void {
-    const props = BUILDING_PROPS[factionSlug(faction)]?.[b.def.mesh];
-    if (!props?.length) return;
-    for (const spec of props) {
-      loadModelById(spec.id, { fitWidth: spec.fitWidth }).then((prop) => {
-        if (!prop || this.tracked.get(b.id) !== t) return;
-        prop.position.x += spec.x;
-        prop.position.y += spec.y ?? 0;
-        prop.position.z += spec.z;
-        prop.rotation.y += spec.rotation ?? 0;
-        t.mesh.add(prop);
-      });
-    }
-  }
-
   update(timeMs = performance.now()): void {
     const seen = new Set<number>();
     for (const b of this.state.buildings) {
@@ -191,30 +114,6 @@ export class BuildingView {
         t = { mesh, scaffold, wasComplete: b.complete, variant, cloths, smokeAt, nextPuffMs: timeMs + Math.random() * 1500 };
         this.tracked.set(b.id, t);
 
-        // Legacy art only: swap the procedural placeholder for an imported GLB
-        // once it loads. The new art system is the whole picture on its own.
-        if (artMode() === 'legacy' && glbModelsEnabled()) {
-          const faction = this.state.players[b.player]?.faction.id ?? '';
-          const fitWidth = Math.max(b.def.footprint[0], b.def.footprint[1]);
-          const current = t;
-          loadModelForMesh(b.def.mesh, faction, { teamColor: color, fitWidth }).then((model) => {
-            if (!model || this.tracked.get(b.id) !== current) return;
-            current.mesh.clear();
-            current.mesh.add(model);
-            current.cloths.length = 0;
-            // GLB swap drops the procedural team banner; keeps get it back so
-            // bases stay readable as friend or foe at a glance.
-            if (b.def.mesh.startsWith('keep')) {
-              const half = fitWidth / 2;
-              const teamBanner = banner(color, 2.4, half * 0.85, half * 0.85);
-              current.mesh.add(teamBanner);
-              teamBanner.traverse((o) => {
-                if (o.userData.bannerCloth) current.cloths.push(o);
-              });
-            }
-            this.attachAssetProps(b, current, faction);
-          });
-        }
       }
 
       const visible = this.visibleFilter ? this.visibleFilter(b) : true;
