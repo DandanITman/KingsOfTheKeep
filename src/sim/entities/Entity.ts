@@ -52,6 +52,17 @@ export class Unit extends Entity {
   readonly defId: string;
   readonly def: UnitDef;
   task: UnitTask = { kind: 'idle' };
+  /**
+   * Shift-queued follow-up orders, drained one at a time as `task` completes.
+   * Any un-queued order clears this — a plain right-click always means "forget
+   * what I said and do this now".
+   */
+  orders: UnitTask[] = [];
+  /**
+   * Hold position: the unit fights what comes into range but never advances,
+   * and auto-systems leave it where it stands.
+   */
+  holdPosition = false;
   assignment: Assignment = 'defend';
   morale: number;
   attackCooldown = 0;
@@ -65,8 +76,6 @@ export class Unit extends Entity {
   garrisonedIn: EntityId | null = null;
   /** Ticks until removal for temporary (ability-summoned) units. */
   temporaryTicks: number | null = null;
-  /** Steering velocity smoothing. */
-  vel: Vec2 = { x: 0, y: 0 };
   /** Timed per-unit stat buffs from abilities. */
   buffs: { stat: string; op: 'mul' | 'add'; value: number; expiresTick: number }[] = [];
   /** Damage-over-time stacks. */
@@ -186,6 +195,8 @@ export class Projectile extends Entity {
   bonusVsBuildings: number;
   sourcePlayer: PlayerId;
   arc: 'flat' | 'lob';
+  /** Damage-over-time the firing unit applies on hit, if any. */
+  dotOnHit?: { dps: number; secs: number };
 
   constructor(opts: {
     player: PlayerId;
@@ -198,6 +209,7 @@ export class Projectile extends Entity {
     splash: number;
     bonusVsBuildings: number;
     arc: 'flat' | 'lob';
+    dotOnHit?: { dps: number; secs: number };
   }) {
     super(opts.player, opts.pos, 1);
     this.startPos = { ...opts.pos };
@@ -210,6 +222,7 @@ export class Projectile extends Entity {
     this.splash = opts.splash;
     this.bonusVsBuildings = opts.bonusVsBuildings;
     this.arc = opts.arc;
+    this.dotOnHit = opts.dotOnHit;
   }
 }
 

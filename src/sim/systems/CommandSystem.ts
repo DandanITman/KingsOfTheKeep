@@ -2,7 +2,23 @@ import { dist } from '@/core/mathUtils';
 import { FORTRESS_GARRISON_SLOTS, HOUSE_UPGRADES } from '@/data/balance';
 import type { Command } from '../commands';
 import type { MatchSim } from '../MatchSim';
-import { Unit } from '../entities/Entity';
+import { Unit, type UnitTask } from '../entities/Entity';
+
+/**
+ * Gives a unit a task, either now or appended to its shift-queue. A direct
+ * (un-queued) order always wins outright and discards anything pending: a plain
+ * right-click means "forget the rest, do this".
+ */
+function assignTask(u: Unit, task: UnitTask, queue: boolean): void {
+  if (queue) {
+    u.orders.push(task);
+    return;
+  }
+  u.orders.length = 0;
+  u.holdPosition = false;
+  u.task = task;
+  u.macroTargetFlagId = null;
+}
 
 /**
  * Applies a queued command to the sim. This is the only place player/bot
@@ -52,8 +68,34 @@ export function processCommand(sim: MatchSim, cmd: Command): void {
           u.prevPos = { ...u.pos };
           u.garrisonedIn = null;
         }
-        u.task = { kind: 'move', dest: { ...cmd.dest }, path: null, attackMove: cmd.attackMove, pinned: true };
+        assignTask(
+          u,
+          { kind: 'move', dest: { ...cmd.dest }, path: null, attackMove: cmd.attackMove, pinned: true },
+          cmd.queue === true,
+        );
+      }
+      break;
+    }
+    case 'stopUnits': {
+      for (const id of cmd.unitIds) {
+        const u = s.unit(id);
+        if (!u || u.player !== cmd.player) continue;
+        u.orders.length = 0;
+        u.holdPosition = false;
         u.macroTargetFlagId = null;
+        u.task = { kind: 'idle' };
+      }
+      break;
+    }
+    case 'holdPosition': {
+      for (const id of cmd.unitIds) {
+        const u = s.unit(id);
+        if (!u || u.player !== cmd.player) continue;
+        u.orders.length = 0;
+        u.macroTargetFlagId = null;
+        // Toggle, so the same key both sets and releases the hold.
+        u.holdPosition = !u.holdPosition;
+        if (u.holdPosition) u.task = { kind: 'idle' };
       }
       break;
     }
@@ -134,7 +176,7 @@ export function processCommand(sim: MatchSim, cmd: Command): void {
       for (const id of cmd.unitIds) {
         const u = s.unit(id);
         if (!u || u.player !== cmd.player || u.def.role !== 'worker') continue;
-        u.task = { kind: 'gather', nodeId: node.id, phase: 'toNode', timer: 0, pinned: true };
+        assignTask(u, { kind: 'gather', nodeId: node.id, phase: 'toNode', timer: 0, pinned: true }, cmd.queue === true);
       }
       break;
     }

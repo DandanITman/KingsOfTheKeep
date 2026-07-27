@@ -13,11 +13,16 @@ interface BiomeSky {
   sunIntensity: number;
 }
 
+/**
+ * `fogColor` is deliberately identical to `horizon`: distance fog fades geometry
+ * to one colour while the sky dome ends in another, and any mismatch shows up as
+ * a hard grey seam along the horizon at max zoom-out. Keep them equal.
+ */
 const BIOME_SKY: Record<Biome, BiomeSky> = {
   grass: {
     zenith: 0x4d7fb8,
-    horizon: 0xd9e6ec,
-    fogColor: 0xaec6d4,
+    horizon: 0xd3e2ea,
+    fogColor: 0xd3e2ea,
     ambient: 0xbcccdc,
     groundBounce: 0x4f5a3c,
     sun: 0xffe7b5,
@@ -25,8 +30,8 @@ const BIOME_SKY: Record<Biome, BiomeSky> = {
   },
   desert: {
     zenith: 0x6f9ecb,
-    horizon: 0xf2ddae,
-    fogColor: 0xe4cfa4,
+    horizon: 0xeed9a8,
+    fogColor: 0xeed9a8,
     ambient: 0xdcc9a4,
     groundBounce: 0x8a6f48,
     sun: 0xffe9b8,
@@ -34,8 +39,8 @@ const BIOME_SKY: Record<Biome, BiomeSky> = {
   },
   savanna: {
     zenith: 0x7aa2c4,
-    horizon: 0xe9d5a5,
-    fogColor: 0xd6c49c,
+    horizon: 0xe4d0a0,
+    fogColor: 0xe4d0a0,
     ambient: 0xd0c4a4,
     groundBounce: 0x6f6438,
     sun: 0xffe4a8,
@@ -43,14 +48,19 @@ const BIOME_SKY: Record<Biome, BiomeSky> = {
   },
   mountain: {
     zenith: 0x53708f,
-    horizon: 0xc7d2da,
-    fogColor: 0xa6b2bd,
+    horizon: 0xc2ced7,
+    fogColor: 0xc2ced7,
     ambient: 0xaeb8c4,
     groundBounce: 0x4a4f48,
     sun: 0xf4ecdc,
     sunIntensity: 1.4,
   },
 };
+
+/** Biome horizon/fog tint. Shared so fog-of-war can dim toward the same colour. */
+export function biomeFogColor(biome: Biome): number {
+  return BIOME_SKY[biome].fogColor;
+}
 
 /** Owns the WebGL renderer, scene, camera, and lights for a match. */
 export class Renderer {
@@ -143,10 +153,28 @@ export class Renderer {
   }
 
   /** Keep the shadow camera (and sky dome) centered on the view target. */
-  followShadow(target: THREE.Vector3): void {
+  /**
+   * Keeps the shadow frustum and sky dome centred on the view. `zoom` tightens
+   * the ortho extent to roughly what the camera can actually see: a fixed ±80
+   * box spends most of a 1024px shadow map on off-screen ground, which is why
+   * shadows read as mushy when zoomed in.
+   */
+  followShadow(target: THREE.Vector3, zoom?: number): void {
     this.sun.position.set(target.x + 60, 90, target.z + 30);
     this.sun.target.position.copy(target);
     this.sky.position.set(target.x, 0, target.z);
+
+    if (zoom !== undefined && this.sun.castShadow) {
+      const extent = Math.max(22, Math.min(90, zoom * 1.1));
+      const cam = this.sun.shadow.camera;
+      if (cam.right !== extent) {
+        cam.left = -extent;
+        cam.right = extent;
+        cam.top = extent;
+        cam.bottom = -extent;
+        cam.updateProjectionMatrix();
+      }
+    }
   }
 
   render(): void {

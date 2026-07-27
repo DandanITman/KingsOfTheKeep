@@ -1,13 +1,33 @@
-import { el, button } from '@/ui/components/dom';
+import { el, button, selectInput } from '@/ui/components/dom';
 import { showModal } from '@/ui/components/Modal';
 import { saveStore } from '@/core/save/SaveStore';
 import { factionList } from '@/data/factions';
 import { MAPS } from '@/data/maps';
-import type { BotDifficulty, FactionId, MatchSetup } from '@/data/types';
+import { CONTROL_GROUPS } from '@/data/controls';
+import type { BotDifficulty, FactionId, MatchSetup, VictoryMode } from '@/data/types';
 import { icon } from '@/ui/icons';
 import type { Screen, ScreenManager } from '../ScreenManager';
 
 type PlayableFaction = Exclude<FactionId, 'neutral'>;
+
+/** Setup guidance plus the full control reference, for the Battle Codex modal. */
+function buildCodexBody(): HTMLElement {
+  const body = el('div', { className: 'codex' }, [
+    el('p', {
+      text:
+        'Choose a map, your faction, your opponent, and a difficulty, then set the battle rules: ' +
+        'which of your decks to bring, how the match is won, starting resources, and game speed.',
+    }),
+  ]);
+  for (const group of CONTROL_GROUPS) {
+    const rows = el('dl', { className: 'codex-keys' });
+    for (const binding of group.bindings) {
+      rows.append(el('dt', { text: binding.keys }), el('dd', { text: binding.action }));
+    }
+    body.append(el('h3', { className: 'codex-heading', text: group.title }), rows);
+  }
+  return body;
+}
 
 const MAP_ART: Record<string, string> = {
   greenvaleCrossing: '/assets/ui/play-setup/greenvale-crossing.png',
@@ -52,7 +72,8 @@ export function createPlaySetupScreen(screens: ScreenManager): Screen {
     playerFaction: 'european',
     botFaction: 'european',
     botDifficulty: 'medium',
-    // Match configuration remains deliberately fixed for the focused setup flow.
+    // Defaults; deck, victory mode, resources and speed are all set by the
+    // battle-rules row below.
     playerDeckId: 'starter',
     botDeckId: 'preset',
     speed: 1,
@@ -76,9 +97,7 @@ export function createPlaySetupScreen(screens: ScreenManager): Screen {
     el('div', { className: 'setup-utility-actions' }, [
       iconButton('Options', 'gears', () => screens.show('options', { returnTo: 'playSetup' })),
       iconButton('Battle Codex', 'setupBook', () => {
-        showModal('Battle Codex', 'Choose a map, your faction, your opponent, and a difficulty. Your standard starter deck and fortress victory are prepared automatically.', [
-          { label: 'Understood', primary: true },
-        ]);
+        showModal('Battle Codex', buildCodexBody(), [{ label: 'Understood', primary: true }]);
       }),
       iconButton('Return to Main Menu', 'menuExit', () => screens.show('mainMenu')),
     ]),
@@ -188,6 +207,8 @@ export function createPlaySetupScreen(screens: ScreenManager): Screen {
 
   const playerFactionCard = factionCard('Your Faction', 'setupPlayerFaction', () => setup.playerFaction as PlayableFaction, (faction) => {
     setup.playerFaction = faction;
+    // Decks are faction-locked, so the usable list changes with the faction.
+    refreshDecks();
   });
   const botFactionCard = factionCard('Bot Faction', 'setupBotFaction', () => setup.botFaction as PlayableFaction, (faction) => {
     setup.botFaction = faction;
@@ -220,6 +241,80 @@ export function createPlaySetupScreen(screens: ScreenManager): Screen {
     difficultyCard,
   ])]);
 
+  // --- Battle rules -------------------------------------------------------
+  // Deck, victory mode, speed and starting resources were previously fixed
+  // constants in this file, which left the deck editor, the shop, and four of
+  // the five implemented victory modes unreachable from a real match.
+
+  const VICTORY_MODES: { value: VictoryMode; label: string }[] = [
+    { value: 'fortress', label: 'Fortress — raze the enemy keep' },
+    { value: 'shrines', label: 'Shrines — hold the sacred sites' },
+    { value: 'survival', label: 'Survival — outlast the waves' },
+    { value: 'timedScore', label: 'Timed — highest score at 20:00' },
+    { value: 'annihilation', label: 'Annihilation — destroy every force' },
+  ];
+
+  const deckSelect = selectInput<string>([{ value: 'starter', label: 'Starter Deck' }], 'starter', (v) => {
+    setup.playerDeckId = v;
+  });
+
+  /** Repopulate from the save; decks are faction-locked, so this reruns on show. */
+  function refreshDecks(): void {
+    const usable = saveStore.data.decks.filter((d) => d.faction === setup.playerFaction);
+    deckSelect.replaceChildren();
+    const add = (value: string, label: string): void => {
+      const o = document.createElement('option');
+      o.value = value;
+      o.textContent = label;
+      deckSelect.append(o);
+    };
+    add('starter', 'Starter Deck');
+    for (const deck of usable) add(deck.id, deck.name);
+    // Keep the current pick if it survived the faction change, else fall back.
+    const stillValid = setup.playerDeckId === 'starter' || usable.some((d) => d.id === setup.playerDeckId);
+    if (!stillValid) setup.playerDeckId = 'starter';
+    deckSelect.value = setup.playerDeckId;
+  }
+
+  const rules = el('section', { className: 'setup-rules' }, [
+    el('label', { className: 'setup-rule' }, [el('span', { text: 'Your Deck' }), deckSelect]),
+    el('label', { className: 'setup-rule' }, [
+      el('span', { text: 'Victory' }),
+      selectInput<VictoryMode>(VICTORY_MODES, setup.victoryMode, (v) => {
+        setup.victoryMode = v;
+      }),
+    ]),
+    el('label', { className: 'setup-rule' }, [
+      el('span', { text: 'Resources' }),
+      selectInput<'standard' | 'rich'>(
+        [
+          { value: 'standard', label: 'Standard' },
+          { value: 'rich', label: 'Rich' },
+        ],
+        setup.startingResources,
+        (v) => {
+          setup.startingResources = v;
+        },
+      ),
+    ]),
+    el('label', { className: 'setup-rule' }, [
+      el('span', { text: 'Speed' }),
+      selectInput<string>(
+        [
+          { value: '0.75', label: 'Slow' },
+          { value: '1', label: 'Normal' },
+          { value: '1.5', label: 'Fast' },
+          { value: '2', label: 'Blitz' },
+        ],
+        String(setup.speed),
+        (v) => {
+          setup.speed = Number(v);
+        },
+      ),
+    ]),
+  ]);
+  settingsPanel.append(rules);
+
   const gameSettings = button('', () => screens.show('options', { returnTo: 'playSetup' }), 'setup-bottom-button');
   gameSettings.innerHTML = `<span>${icon('setupSliders')}</span><span>Game Settings</span>`;
   const toBattle = button('', () => {
@@ -246,6 +341,7 @@ export function createPlaySetupScreen(screens: ScreenManager): Screen {
     root,
     onShow() {
       refreshCommander();
+      refreshDecks();
       selectMap(mapIndex);
       selectDifficulty(setup.botDifficulty);
     },

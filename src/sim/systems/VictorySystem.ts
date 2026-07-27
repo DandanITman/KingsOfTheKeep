@@ -1,10 +1,13 @@
 import {
+  ANNIHILATION_GRACE_SECS,
   SHRINE_CAPTURE_RADIUS,
   SHRINE_HOLD_SECS,
   TICK_RATE,
   TICK_SECS,
   TIMED_SCORE_SECS,
 } from '@/data/balance';
+import { BUILDING_DB } from '@/data/buildings';
+import { getCard } from '@/data/cards';
 import type { PlayerId } from '../commands';
 import type { MatchState } from '../MatchState';
 import { NEUTRAL_PLAYER, Unit } from '../entities/Entity';
@@ -45,15 +48,20 @@ export function victorySystem(state: MatchState): void {
     }
   } else if (mode === 'annihilation') {
     for (const p of state.players) {
-      const hasMilitary =
-        state.units.some((u) => !u.dead && u.player === p.id && u.def.role !== 'worker') ||
-        state.buildings.some((b) => !b.dead && b.player === p.id && b.def.kind === 'military');
-      const enemy = state.enemyOf(p.id);
-      const enemyEverBuilt = state.timeSecs > 180; // grace period
-      if (!hasMilitary && enemyEverBuilt) {
-        declareWinner(state, enemy.id, 'All military forces destroyed');
-        return;
-      }
+      // You are annihilated when you have no army, no military buildings, AND no
+      // way back — i.e. you can't afford to rebuild the cheapest one you own.
+      // Checking only "no army and no barracks" made this a trap rather than a
+      // victory condition: a player teching peacefully who simply hadn't built a
+      // barracks by the 3:00 mark lost on the spot without being attacked.
+      const hasArmy = state.units.some((u) => !u.dead && u.player === p.id && u.def.role !== 'worker');
+      const hasMilitaryBuilding = state.buildings.some(
+        (b) => !b.dead && b.player === p.id && b.def.kind === 'military',
+      );
+      if (hasArmy || hasMilitaryBuilding) continue;
+      if (state.timeSecs <= ANNIHILATION_GRACE_SECS) continue;
+      if (canStillRebuildArmy(state, p.id)) continue;
+      declareWinner(state, state.enemyOf(p.id).id, 'All military forces destroyed');
+      return;
     }
   } else if (mode === 'timedScore') {
     if (state.timeSecs >= TIMED_SCORE_SECS) {
@@ -73,6 +81,24 @@ export function shrineHoldTotal(state: MatchState, player: PlayerId): number {
     total += obj.heldSecs.get(player) ?? 0;
   }
   return total;
+}
+
+/**
+ * True while the player could still put an army back on the field — they hold a
+ * military building card in their deck and can currently pay for it. A player
+ * with resources banked and a barracks card in hand has not been annihilated,
+ * they have merely been slow.
+ */
+function canStillRebuildArmy(state: MatchState, player: PlayerId): boolean {
+  const p = state.players[player];
+  for (const slot of p.cards) {
+    const card = getCard(slot.cardId);
+    if (!card.buildingId) continue;
+    const def = BUILDING_DB.get(card.buildingId);
+    if (!def || def.kind !== 'military') continue;
+    if (state.canAfford(player, card.cost ?? def.cost)) return true;
+  }
+  return false;
 }
 
 export function declareWinner(state: MatchState, winner: PlayerId, reason: string): void {

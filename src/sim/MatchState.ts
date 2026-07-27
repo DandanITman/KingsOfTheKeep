@@ -272,9 +272,28 @@ export class MatchState {
     tally[resource] = (tally[resource] ?? 0) + amount;
   }
 
+  /**
+   * The player's main fortress. `fortressId` is a cache of the primary keep; if
+   * that one has fallen we rescan for any other fortress the player still holds
+   * and re-cache it. Without the rescan, owning a second fortress did nothing —
+   * `VictorySystem` treats a null result as defeat, so the original keep was
+   * always the sole loss condition no matter what else you had built.
+   */
   fortressOf(player: PlayerId): Building | null {
     const id = this.players[player].fortressId;
-    return id !== null ? this.building(id) : null;
+    if (id !== null) {
+      const cached = this.building(id);
+      if (cached && !cached.dead) return cached;
+    }
+    // Only finished keeps count — otherwise dropping a foundation would be
+    // enough to stave off defeat indefinitely.
+    for (const b of this.buildings) {
+      if (b.dead || b.player !== player || b.def.kind !== 'fortress' || !b.complete) continue;
+      this.players[player].fortressId = b.id;
+      return b;
+    }
+    this.players[player].fortressId = null;
+    return null;
   }
 }
 

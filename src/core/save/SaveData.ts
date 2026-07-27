@@ -69,10 +69,29 @@ export function migrate(raw: Record<string, unknown>): SaveData {
     data = migrations[version](data);
     version = typeof data.version === 'number' ? (data.version as number) : version + 1;
   }
-  // Backfill any newly-added fields from defaults (shallow, per section).
+  // Backfill any newly-added fields from defaults, one level into each section.
+  // A top-level-only backfill left a save carrying a partial `options` object
+  // (say `{}`, or one missing `display`) untouched, and the app then died at
+  // boot dereferencing `options.display.uiScale` with no way to recover.
+  // Depth 3 reaches individual settings: save -> options -> display -> uiScale.
   const def = defaultSave() as unknown as Record<string, unknown>;
-  for (const key of Object.keys(def)) {
-    if (data[key] === undefined) data[key] = def[key];
-  }
+  backfill(data, def, 3);
   return data as unknown as SaveData;
+}
+
+/** Recursively fill missing keys from `defaults`, descending `depth` levels. */
+function backfill(target: Record<string, unknown>, defaults: Record<string, unknown>, depth: number): void {
+  for (const key of Object.keys(defaults)) {
+    const fallback = defaults[key];
+    const current = target[key];
+    if (current === undefined || current === null) {
+      target[key] = fallback;
+    } else if (depth > 1 && isPlainObject(current) && isPlainObject(fallback)) {
+      backfill(current, fallback, depth - 1);
+    }
+  }
+}
+
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
 }

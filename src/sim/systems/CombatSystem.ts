@@ -8,8 +8,10 @@ import {
   SIEGE_PROJECTILE_SPEED,
   TAG_COUNTERS,
   TARGET_ACQUIRE_PERIOD_TICKS,
+  TICK_RATE,
   TICK_SECS,
 } from '@/data/balance';
+import type { PlayerId } from '../commands';
 import type { MatchState } from '../MatchState';
 import { Building, Entity, Projectile, Unit } from '../entities/Entity';
 import { applyDamage } from './damage';
@@ -23,7 +25,8 @@ export function counterMultiplier(attacker: Unit, defender: Entity): number {
   if (defender instanceof Unit) {
     mult *= COUNTER_TABLE[attacker.def.role]?.[defender.def.role] ?? 1;
     for (const tc of TAG_COUNTERS) {
-      if (!attacker.def.tags.includes(tc.attackerTag as never)) continue;
+      if (tc.attackerTag && !attacker.def.tags.includes(tc.attackerTag as never)) continue;
+      if (tc.attackerRole && attacker.def.role !== tc.attackerRole) continue;
       if (tc.defenderRole && defender.def.role !== tc.defenderRole) continue;
       if (tc.defenderTag && !defender.def.tags.includes(tc.defenderTag as never)) continue;
       mult *= tc.mult;
@@ -107,7 +110,13 @@ export function combatSystem(state: MatchState): void {
     // Engagement checks (cheap, periodic).
     if (acquireTick && unit.def.role !== 'worker' && unit.def.damage > 0) {
       if (task.kind === 'idle') {
-        const target = acquireTarget(state, unit, unit.def.los);
+        // A held unit only picks targets already inside its weapon range —
+        // acquiring at full LOS would make it flip between fight and idle every
+        // few ticks against something it has no intention of walking toward.
+        const reach = unit.holdPosition
+          ? unitStat(state, unit, unit.def.range, 'range') + 0.5
+          : unit.def.los;
+        const target = acquireTarget(state, unit, reach);
         if (target) unit.task = { kind: 'fight', targetId: target.id, returnTo: { ...unit.pos } };
       } else if (task.kind === 'move' && task.attackMove) {
         const target = acquireTarget(state, unit, unit.def.los);
@@ -164,6 +173,11 @@ export function combatSystem(state: MatchState): void {
       const targetRadius = target instanceof Building ? Math.max(target.def.footprint[0], target.def.footprint[1]) / 2 : 0.4;
       const d = dist(unit.pos, target.pos) - targetRadius;
       if (d > range) {
+        // Hold position: shoot what walks into range, never chase it.
+        if (unit.holdPosition) {
+          unit.task = { kind: 'idle' };
+          continue;
+        }
         stepToward(state, unit, target.pos, range + targetRadius);
       } else {
         unit.facing = Math.atan2(target.pos.y - unit.pos.y, target.pos.x - unit.pos.x);
@@ -247,6 +261,24 @@ function nearestEnemyUnit(state: MatchState, pos: { x: number; y: number }, play
   return target;
 }
 
+/**
+ * Applies an on-hit damage-over-time to a unit target. Shared by the melee path
+ * here and the projectile impact path so the two can't drift apart again.
+ */
+export function applyDot(
+  state: MatchState,
+  target: Entity,
+  dot: { dps: number; secs: number } | undefined,
+  sourcePlayer: PlayerId,
+): void {
+  if (!dot || !(target instanceof Unit) || target.dead) return;
+  target.dots.push({
+    dps: dot.dps,
+    expiresTick: state.tick + dot.secs * TICK_RATE,
+    sourcePlayer,
+  });
+}
+
 function performAttack(state: MatchState, attacker: Unit, target: Entity): void {
   const dmg = attackDamage(state, attacker, target);
   if (isRanged(attacker)) {
@@ -262,6 +294,10 @@ function performAttack(state: MatchState, attacker: Unit, target: Entity): void 
         splash: attacker.def.splash ?? 0,
         bonusVsBuildings: attacker.def.bonusVsBuildings ?? 0,
         arc: attacker.def.role === 'siege' ? 'lob' : 'flat',
+        // Rides along on the projectile so ranged fire/poison units actually
+        // apply their DoT — it used to be applied only on the melee path, so
+        // every ranged unit with `dotOnHit` silently lost it.
+        dotOnHit: attacker.def.dotOnHit,
       }),
     );
   } else {
@@ -270,12 +306,6 @@ function performAttack(state: MatchState, attacker: Unit, target: Entity): void 
       bonusVsBuildings: attacker.def.bonusVsBuildings,
       sourcePlayer: attacker.player,
     });
-    if (attacker.def.dotOnHit && target instanceof Unit) {
-      target.dots.push({
-        dps: attacker.def.dotOnHit.dps,
-        expiresTick: state.tick + attacker.def.dotOnHit.secs * 10,
-        sourcePlayer: attacker.player,
-      });
-    }
+    applyDot(state, target, attacker.def.dotOnHit, attacker.player);
   }
 }

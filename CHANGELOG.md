@@ -1,5 +1,295 @@
 # Changelog
 
+## Overhaul phase 3b + 4: procedural units, and every borrowed asset deleted
+
+Completes the art overhaul. Everything in the 3D world is now generated in
+code, and all third-party models are gone from the repository.
+
+**Units are faction-aware.** 136 units share only 29 mesh archetypes and
+`UnitDef.mesh` carries no faction, so a European serf, an Asian rice farmer, an
+African hearth worker and a Middle Eastern town worker were all literally the
+same mesh. Archetypes are now compiled per (archetype x faction) from a small
+parts vocabulary — body, headgear, shield, weapon, mount — with the faction
+supplying helm silhouette (kettle/kabuto/feather crown/turban), shield shape
+(kite/buckler/hide oval/round), blade curvature (straight through scimitar) and
+palette. `UnitView`'s instance pools are keyed by archetype *and* faction, so
+the two armies in a match render visibly differently while still drawing in a
+handful of calls.
+
+The action layer deliberately does **not** count toward a unit's declared
+height — otherwise a catapult would measure differently with its arm cocked than
+released, and the contract test would be measuring a pose rather than a unit.
+
+**Units were raised from a 1:5.6 ratio against the keep to roughly 1:4.** The
+old procedural scale was faithful to what the game had always rendered, but left
+units too small to pick out and command at normal zoom. In an RTS the units are
+what the player is actually looking at, so they win over architectural realism.
+
+**Deleted (~192 MB):**
+
+- `public/assets/models/` — all 89 GLBs
+- `assets_raw/` — the raw downloads
+- `public/assets/textures/faction_materials/` — 24 MB that no code ever
+  referenced; there was never a `TextureLoader` call in the project
+- `public/assets/asset_manifest.json`
+- `src/render/assets/ModelLibrary.ts` — the whole GLB pipeline, including the
+  animation-clip retargeting, donor-rig borrowing and skeleton-aware bounds
+  machinery built to work around imported-model quirks
+- `src/render/meshes/{unitMeshes,buildingMeshes}.ts` — the legacy procedural
+  builders, now fully superseded
+- `tests/assets.test.ts` — replaced by `tests/art.test.ts` in phase 3a
+- `docs/ASSET_SOURCES.md`, `docs/FACTION_ASSET_ROADMAP.md`
+- The `?art=` and `?models=` switches, now that there is only one art system
+
+Verified before deleting that all 39 building mesh keys and all 29 unit mesh
+keys in the data layer resolve to a blueprint, so nothing falls through to a
+fallback that no longer exists.
+
+**Licensing.** `docs/ASSET_SOURCES.md` required in-game CC-BY credit lines that
+`CreditsScreen.ts` never actually carried — the build was shipping CC-BY art
+without the attribution its own policy mandated. Removing the third-party art
+resolves that permanently; the credits now state that all art is generated in
+code and all audio synthesized.
+
+**Added `docs/ART_DIRECTION.md`** covering the three rules the system enforces
+(declared heights not scale factors, geometry names a slot and the faction
+decides how it looks, nothing resolves silently), the per-faction shape grammar,
+and how to add a building or unit.
+
+`README.md`'s long-standing claim that "all art is procedural low-poly, no
+assets" is finally true.
+
+**Known follow-ups.** `public/assets/ui/` still ships 36 MB, of which
+`play-setup/` is 32 MB across 11 uncompressed PNGs — the same problem the
+menu-icon pass fixed at 1 MB → 100 KB each. It also still contains the Kenney
+Fantasy UI Borders pack (1.6 MB, CC0), used as 9-slice frames from CSS; that is
+third-party 2D UI chrome rather than game art, and was kept deliberately, but it
+is the last borrowed asset in the repo if you want it gone too.
+
+Note that deleting these files shrinks the working tree, not the git history.
+Reclaiming the ~192 MB from history would need `git filter-repo`, which rewrites
+every commit hash — not done, and probably not worth it.
+
+Typecheck clean; 56 → 50 tests (the 6 manifest tests are gone; the 12 art
+contract tests remain). All four factions verified in a browser.
+
+## Overhaul phase 3a: procedural art system — scale contract, faction grammar, buildings
+
+The first half of replacing the imported-model art with one coherent,
+code-authored system. New `src/render/art/` is now the single source of truth
+for how the 3D world looks, built alongside the old system behind an `?art=`
+switch so the game stays playable throughout the migration.
+
+**The scale contract (`art/scale.ts`).** The bug that made units float and
+render 2.5x oversized was fundamentally a scale bug that nothing checked: sizes
+were opaque multipliers (`s = 0.9` here, `fitSize: 1.45` there) with no declared
+meaning. Sizes are now named heights in world units, and `tests/art.test.ts`
+measures the real geometry against the declaration rather than trusting it.
+Nothing auto-fits to a measured bound — blind normalization is what caused the
+original bug.
+
+This exposed a live defect: procedural infantry stood 0.94 units tall while the
+GLB path built them at 1.8, and since imported models cap at 120 per match, a
+large battle rendered the same unit type at two different sizes side by side.
+Both paths now read the same table. `UnitView`'s `s = 0.9` is gone, replaced by
+a scale derived from each archetype's declared height, and the three separate
+hardcoded guesses at keep-wall height collapse into one `wallWalkHeight()`.
+
+**Faction identity from shared blueprints.** 24 of the ~60 buildings are shared
+by all four factions — a European barracks and an Asian barracks are literally
+the same `mesh` key — so faction identity cannot come from the mesh key and has
+to be supplied at build time. `buildBuildingMesh` now takes a faction, and
+blueprints call `c.mass()` / `c.roof()` / `c.tower()` rather than raw shapes, so
+the faction substitutes its own materials and silhouette grammar underneath.
+One barracks blueprint now produces four genuinely different buildings:
+
+- **European** — grey ashlar, steep red-tile gables, spired towers, gold cross
+- **Asian** — pale plaster, tiered upswept pagoda roofs, red lacquer trim
+- **African** — round battered mudbrick, tall thatch cones, gourd finials
+- **Middle Eastern** — sandstone cubes, flat parapets with turquoise coping,
+  onion domes, crescent finials
+
+**Building silhouettes.** Lumber Camp, Mining Camp and Stone Quarry were the
+same two boxes with a differently coloured cube, and unreadable in the card bar.
+They now differ by *dominant axis* rather than colour — a vertical minehead
+frame, a diagonal derrick boom, low horizontal log stacks — and a test asserts
+their proportions actually differ so a future copy-paste can't quietly undo it.
+The camps also grew from ~1.0 to 2.0–2.4 units tall so their props read at all.
+
+**Baked ambient occlusion.** Contact darkening toward the ground plus darkening
+of downward-facing faces, computed once at build time into the vertex colours
+the geometry already carries. Zero runtime cost, and it is most of what
+separates flat untextured primitives from something that looks hand-painted.
+
+**Contact shadows.** A soft blob under every unit, one instanced draw call for
+the whole army. The shadow map alone never sells contact at RTS zoom; this is
+what makes units look like they are standing on the terrain, and it removes the
+floating read permanently regardless of what the shadow map does.
+
+**Card previews now show the player's own faction.** Universal cards carry
+faction `neutral`, so a European player's Barracks card previewed in generic
+neutral styling — art they would never see in a match. Previews are keyed on the
+viewer's faction and cached per (card, faction).
+
+Also fixed: `prism` was built with `ExtrudeGeometry`, which produces
+*non-indexed* geometry, and `mergeGeometries` returns null when merging a mix of
+indexed and non-indexed inputs — one extruded gable roof silently emptied every
+other part of the building it belonged to. It is now an explicit indexed
+geometry with per-face vertices so facets stay flat-shaded.
+
+`tests/art.test.ts` (12 cases) replaces the coverage `tests/assets.test.ts` will
+lose when the manifest goes: every blueprint builds for every faction, every
+building matches its declared height within tolerance and sits at y=0, keeps
+grow per tier, camps are shape-distinguishable, unknown mesh keys resolve
+explicitly rather than silently substituting, and every unit mesh key in the
+data layer has a declared height.
+
+**Still to come in phase 3:** unit archetypes are not yet authored as
+faction-aware blueprints — they use the legacy geometry, now correctly scaled
+and shadowed, so all 16 worker types still share one look. Terrain, water and
+the fog rework against the new palette are also outstanding, as is deleting the
+GLB pipeline (phase 4).
+
+Typecheck clean; vitest 44 → 56 tests. All four factions verified in a browser,
+and `?art=legacy` still boots clean.
+
+## Overhaul phase 2: control groups, hotkeys, queued orders, stop and hold
+
+The game previously had no RTS control layer at all — the entire keyboard
+vocabulary was WASD, Q/E, Space, R, Esc and F8. Every order meant a mouse trip
+to the HUD, there was no way to recall a group of units, and each new order
+discarded the previous one outright.
+
+**New `src/app/screens/MatchHotkeys.ts`** owns the keyboard command layer. It
+lives in the app layer, never the sim: every action it takes goes through
+`MatchSim.enqueue`, the same command seam the bot and the mouse already use, so
+the simulation stays DOM-free and the keyboard cannot desync it. Keys are
+ignored while a text field has focus.
+
+- **Control groups.** `Ctrl+1-9` assigns, `1-9` recalls, pressing the same group
+  twice within 400ms centres the camera on it. Dead ids are pruned each frame so
+  a group never resurrects a stale selection.
+- **Selection shortcuts.** `Ctrl+A` selects your whole army (military only —
+  workers stay on the gold), `.` / `,` cycle idle workers and centre on each,
+  `` ` `` jumps to your keep without disturbing the selection.
+- **Card bar hotkeys.** `Q W E T A D F G Z X C V` play the matching slot, with
+  the key drawn as a badge on each card tile. Pressing a second card key swaps
+  the pending placement rather than stacking modes. The set deliberately skips
+  S, H and R (stop, hold, rotate-ghost): binding those by context would mean the
+  same key doing different things depending on what happened to be selected.
+
+**Shift-queued orders.** `Unit` gained an `orders: UnitTask[]` queue;
+`directOrder`, `directGather` and `directBuild` take a `queue` flag set by
+shift+right-click. The queue drains in one place — a single pass in
+`MatchSim.tick` that advances any unit sitting idle with orders pending — so
+every path that finishes a task by going idle (arrival, gather completion, a
+dead fight target) advances the queue for free, with no per-system changes. A
+plain right-click still discards everything pending, which is what a player
+means by it.
+
+**Stop and hold position.** New `stopUnits` and `holdPosition` commands, bound to
+`S` and `H`, distinct from the global emergency STOP in the macro panel. Hold is
+a toggle and is genuinely enforced rather than being a flag nothing reads: a
+holding unit only acquires targets already inside its weapon range (acquiring at
+full line-of-sight would flip it between fight and idle every few ticks against
+something it will never walk toward), never chases, and is skipped by the macro
+steering and worker-allocation systems. Shift-queued units are likewise left
+alone by those auto-systems.
+
+**Documentation.** Added `src/data/controls.ts` as the single dependency-free
+source of truth for bindings. The setup screen's Battle Codex now renders the
+full reference — `showModal` accepts an element as well as a string — and the
+README control table was expanded to match.
+
+Typecheck clean; vitest 41 → 44 tests. The hold-position test asserts both
+halves (an ordinary unit closes the gap, the same setup on hold does not) so it
+cannot pass vacuously. Control groups, card hotkeys and the codex were verified
+in a browser.
+
+## Overhaul phase 1: unit scale, fog of war, world edge, dead wiring, sim fixes
+
+First pass of a wider graphics/mechanics/playability overhaul. This phase fixes
+what visibly reads as broken and makes already-implemented content reachable; it
+adds no new systems.
+
+**Imported units were floating and ~2.5x oversized.** `ModelLibrary` fitted every
+GLB by `max(size.x, size.z)` — the *horizontal footprint*, not height — so a
+humanoid fitted to 0.9 came out over 2 units tall, and the oversizing scaled up
+the small residual gap between bind-pose grounding and the animated pose into a
+visible hover. Fitting is now split into two explicit, separately-named
+semantics: `fitHeight` for units (a unit's size is how tall it stands) and
+`fitWidth` for buildings and resource nodes (whose size is dictated by the sim's
+footprint). `UnitView.importedUnitFitSize` became `importedUnitHeight`, carrying
+real world-unit heights — 1.8 infantry, 2.4 cavalry, 2.6 camel/siege, 4.2
+elephant — against a keep of roughly 9. Procedural-mode units were always correct;
+only the GLB path was affected.
+
+**Fog of war read as a dead black void.** It was a plane floating at y=2.5 —
+exactly hut-roof height, so anything taller punched through and hovered on top of
+it — painting unexplored terrain at alpha 0.94 over near-black, with hard `?:`
+steps that showed the cell grid as blocks. It now sits at ground level, tints
+toward the biome's own horizon colour at a lighter alpha, blurs the value grid 3x3
+on upload (stored as `value * 127` so the fractional result survives 8-bit
+quantization), and samples with `smoothstep`. Resource nodes in never-seen
+territory are hidden rather than advertising themselves through the haze.
+
+**The map edge and the void beyond it were visible at max zoom-out.** Added a
+low-resolution apron extending 320 units past the map bounds that stays near-flat
+at first and then falls away, washed toward the horizon colour with distance so it
+reads as aerial perspective rather than a bright green field. The fog plane
+overhangs the map by 90 units with clamped sampling, so land outside the playable
+area carries the same fog state as the map edge beside it instead of leaving the
+map outlined as a sharp dark rectangle. Also set `fogColor === horizon` per biome
+in `Renderer` — the two differed, and distance fog fading geometry to one colour
+while the sky dome ended in another was the hard grey horizon seam.
+
+**Shadow quality:** the sun's ortho frustum was fixed at ±80 regardless of zoom,
+spending most of a 1024px shadow map on off-screen ground. It now tracks camera
+zoom, clamped to 22–90.
+
+**The deck editor, the shop, and 4 of 5 victory modes were wired to nothing.**
+`PlaySetupScreen` hardcoded `playerDeckId: 'starter'` while the deck editor saves
+decks as `deck_<timestamp>`, so `MatchScreen`'s lookup always missed and silently
+fell back — making the entire shop → packs → dust → crafting → deck-building loop
+unable to affect a match. `victoryMode`, `speed` and `startingResources` were
+hardcoded in the same block. Added a "battle rules" strip to the setup screen with
+deck (faction-filtered, refreshed when the faction changes), victory mode,
+starting resources and game speed. A deck-lookup miss now warns to the console
+instead of failing silently.
+
+**Sim correctness:**
+
+- `dotOnHit` only ever fired on melee hits — every ranged unit carrying it (10
+  units across three factions) silently lost it. It now rides on the projectile
+  and is applied at impact, through a shared `applyDot` helper so the melee and
+  projectile paths can't drift apart again.
+- Rebuilding a fortress was pointless: `player.fortressId` was written once at
+  match start and never updated, so `fortressOf()` returned null the moment the
+  original keep fell and `VictorySystem` read that as immediate defeat. It now
+  rescans for any other *completed* fortress the player holds and re-caches.
+- The `shielded` tag counter was written backwards — `attackerTag: 'shielded',
+  defenderRole: 'ranged'` made shield units deal 30% *less* damage to archers,
+  the opposite of the intent recorded in its own comment. `TAG_COUNTERS` gained
+  an `attackerRole` predicate and the rule is now expressed as archers doing
+  less to shielded targets.
+- `annihilation` mode was a trap rather than a victory condition: after a 180s
+  grace, a player with no army and no military buildings lost on the spot, so a
+  peacefully-teching player who simply hadn't built a barracks by 3:00 lost
+  unattacked. The grace is now 300s and elimination additionally requires that
+  the player cannot afford any military building in their deck.
+- `Unit.vel` was declared and documented as "steering velocity smoothing" but
+  never read or written. Removed.
+
+**Save robustness:** `migrate()`'s backfill was shallow at the top level only
+despite its comment claiming "per section", so a save carrying a partial
+`options` object survived migration untouched and then killed the app at boot
+dereferencing `options.display.uiScale`. It now descends three levels, filling
+missing settings while preserving the player's existing choices.
+
+Typecheck clean; the vitest suite went 35 → 41 tests. The five new sim/save cases
+were each verified to fail against the old behaviour before the fix was restored,
+so they test the bug rather than the implementation.
+
 ## Main-menu icon size and clipping fix
 
 - Normalized the six main-menu icon PNGs: trimmed each to its artwork's alpha

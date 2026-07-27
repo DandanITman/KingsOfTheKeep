@@ -28,6 +28,7 @@ import { FOG_VISIBLE, FOG_BLACK } from '@/sim/systems/FogSystem';
 import { hideCardPopup } from '@/ui/cards/CardHover';
 import { MatchInput } from './MatchInput';
 import { MatchSelection } from './MatchSelection';
+import { MatchHotkeys } from './MatchHotkeys';
 import type { Screen, ScreenManager } from '../ScreenManager';
 
 /**
@@ -68,6 +69,7 @@ export class MatchRunner {
   private effects: EffectsView;
   private overlay: OverlayCanvas;
   private selection: MatchSelection;
+  private hotkeys: MatchHotkeys;
   private selectionPanel: SelectionPanel;
   private alertFeed: AlertFeed;
   private flagView: FlagView;
@@ -90,6 +92,13 @@ export class MatchRunner {
     this.screens = screens;
     this.speedMult = setup.speed;
     const savedDeck = saveStore.data.decks.find((d) => d.id === setup.playerDeckId);
+    if (!savedDeck && setup.playerDeckId !== 'starter') {
+      // A miss here silently swaps in the starter deck, which is exactly how the
+      // deck editor went unnoticed as disconnected for so long. Say so.
+      console.warn(
+        `[match] deck "${setup.playerDeckId}" not found in save; falling back to the starter deck.`,
+      );
+    }
     this.sim = new MatchSim(setup, this.bus, savedDeck ? { player: savedDeck } : undefined);
     const state = this.sim.state;
     const display = saveStore.data.options.display;
@@ -103,7 +112,7 @@ export class MatchRunner {
     this.ghost = new GhostPlacementView();
     this.effects = new EffectsView(state);
     this.flagView = new FlagView(state);
-    this.fogView = new FogView(state);
+    this.fogView = new FogView(state, state.map.terrain.biome);
     this.renderer.scene.add(
       this.terrain.root,
       this.unitView.root,
@@ -171,6 +180,14 @@ export class MatchRunner {
     this.alertFeed = new AlertFeed(this.bus, (pos) => this.rig.jumpTo(pos));
     this.macroPanel = new MacroPanel(this.sim, (flagType) => this.input.startFlagPlacing(flagType));
     this.objectivesPanel = new ObjectivesPanel(state);
+    this.hotkeys = new MatchHotkeys({
+      sim: this.sim,
+      selection: this.selection,
+      rig: this.rig,
+      cardBar: this.cardBar,
+      input: this.input,
+      homePos: () => state.fortressOf(0)?.pos ?? null,
+    });
     this.input.onFlagPlace = (flagType, world) => {
       this.sim.enqueue({ kind: 'placeFlag', player: 0, flagType, pos: world });
     };
@@ -303,7 +320,7 @@ export class MatchRunner {
 
     const alpha = Math.min(1, this.accumulator / TICK_SECS);
     this.rig.update(dt, this.renderer.camera);
-    this.renderer.followShadow(this.rig.target);
+    this.renderer.followShadow(this.rig.target, this.rig.zoom);
     this.unitView.update(alpha, now);
     this.buildingView.update();
     this.effects.update(alpha);
@@ -313,6 +330,7 @@ export class MatchRunner {
     this.macroPanel.update();
     this.objectivesPanel.update();
     this.selection.prune();
+    this.hotkeys.prune();
     this.overlay.update(alpha, saveStore.data.options.display);
     this.topBar.update();
     this.economyPanel.update();
@@ -399,6 +417,7 @@ export class MatchRunner {
     window.removeEventListener('keydown', this.escHandler);
     if (this.devKeyHandler) window.removeEventListener('keydown', this.devKeyHandler);
     import('@/audio/AudioManager').then(({ audio }) => audio.detachMatch());
+    this.hotkeys.dispose();
     this.input.dispose();
     this.cardBar.dispose();
     this.rig.dispose();

@@ -2,6 +2,7 @@ import { dist, moveToward } from '@/core/mathUtils';
 import { TICK_SECS } from '@/data/balance';
 import type { MatchState } from '../MatchState';
 import { Building, Unit } from '../entities/Entity';
+import { applyDot } from './CombatSystem';
 import { applyDamage } from './damage';
 
 const scratch: number[] = [];
@@ -33,6 +34,7 @@ function impact(state: MatchState, p: import('../entities/Entity').Projectile): 
       const u = state.unit(id);
       if (!u || u.player === p.sourcePlayer) continue;
       applyDamage(state, u, p.damage, { pierce: p.pierce, sourcePlayer: p.sourcePlayer });
+      applyDot(state, u, p.dotOnHit, p.sourcePlayer);
     }
     state.buildingHash.query(p.targetPos, p.splash + 3, scratch);
     for (const id of scratch) {
@@ -48,5 +50,6 @@ function impact(state: MatchState, p: import('../entities/Entity').Projectile): 
       bonusVsBuildings: p.bonusVsBuildings,
       sourcePlayer: p.sourcePlayer,
     });
+    applyDot(state, target, p.dotOnHit, p.sourcePlayer);
   }
 }

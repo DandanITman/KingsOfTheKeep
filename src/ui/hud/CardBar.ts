@@ -14,15 +14,30 @@ export type CardClickHandler = (card: Card) => void;
  * The card bar (GDD §14.3): the player's whole deck as clickable cards with
  * availability states — available / disabled (cost) / cooldown / locked (tier).
  */
+/**
+ * Keys bound to card-bar slots, in bar order — left-hand reachable so opening
+ * builds don't need a glance down.
+ *
+ * Deliberately excludes S and H (stop / hold position) and R (rotate the
+ * building ghost). Overloading those by context would mean the same key doing
+ * different things depending on what happened to be selected, which is worse
+ * than a slightly less tidy alphabet.
+ */
+export const CARD_HOTKEYS = ['Q', 'W', 'E', 'T', 'A', 'D', 'F', 'G', 'Z', 'X', 'C', 'V'];
+
 export class CardBar {
   readonly root: HTMLElement;
   private state: MatchState;
   private tiles = new Map<string, { tile: HTMLElement; cdOverlay: HTMLElement; reason: HTMLElement }>();
   private disposers: (() => void)[] = [];
+  /** Card ids in visual bar order, so hotkeys line up with what's on screen. */
+  private order: string[] = [];
+  private onClick: CardClickHandler;
   selectedCardId: string | null = null;
 
   constructor(state: MatchState, onClick: CardClickHandler) {
     this.state = state;
+    this.onClick = onClick;
     this.root = el('div', { className: 'card-bar' });
 
     for (const slot of state.players[0].cards) {
@@ -37,7 +52,7 @@ export class CardBar {
       const cdOverlay = el('div', { className: 'card-cd' });
       const reason = el('div', { className: 'card-reason' });
       const art = el('div', { className: 'card-art-window' });
-      const model = buildCardModel(card);
+      const model = buildCardModel(card, state.players[0].faction.id);
       if (model) {
         const canvas = document.createElement('canvas');
         canvas.width = 220;
@@ -49,6 +64,7 @@ export class CardBar {
         art.append(el('div', { className: 'card-icon', html: icon(card.icon) }));
       }
       art.append(el('div', { className: 'card-age-badge', text: ageLabel(card).replace('Age ', '') }));
+      const hotkey = CARD_HOTKEYS[this.order.length];
       tile.append(
         el('div', { className: 'card-rarity-strip' }),
         art,
@@ -57,12 +73,26 @@ export class CardBar {
         cdOverlay,
         reason,
       );
+      if (hotkey) tile.append(el('div', { className: 'card-hotkey', text: hotkey }));
+      this.order.push(card.id);
       tile.addEventListener('click', () => onClick(card));
       // Linger on a card to inspect the full detail card (3D model + stats).
       attachCardHover(tile, () => card);
       this.tiles.set(card.id, { tile, cdOverlay, reason });
       this.root.append(tile);
     }
+  }
+
+  /**
+   * Fire the slot bound to `key` (e.g. 'Q'), exactly as if it were clicked.
+   * Returns false when nothing is bound there.
+   */
+  activateHotkey(key: string): boolean {
+    const index = CARD_HOTKEYS.indexOf(key);
+    const cardId = index >= 0 ? this.order[index] : undefined;
+    if (!cardId) return false;
+    this.onClick(getCard(cardId));
+    return true;
   }
 
   setSelected(cardId: string | null): void {

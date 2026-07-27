@@ -7,12 +7,16 @@ export interface ModalButton {
   danger?: boolean;
 }
 
-/** Show a modal dialog; resolves/closes when any button is clicked. */
-export function showModal(title: string, message: string, buttons: ModalButton[]): HTMLElement {
+/**
+ * Show a modal dialog; closes when any button is clicked. `message` may be a
+ * string (rendered as a paragraph) or a prebuilt element for richer content
+ * such as the controls reference.
+ */
+export function showModal(title: string, message: string | HTMLElement, buttons: ModalButton[]): HTMLElement {
   const backdrop = el('div', { className: 'modal-backdrop' });
   const modal = el('div', { className: 'modal' }, [
     el('h2', { text: title }),
-    el('p', { text: message }),
+    typeof message === 'string' ? el('p', { text: message }) : message,
   ]);
   const row = el('div', { className: 'modal-buttons' });
   for (const b of buttons) {

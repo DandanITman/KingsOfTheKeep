@@ -36,7 +36,9 @@ export function createCreditsScreen(screens: ScreenManager): Screen {
     <div style="font-size:15px;color:var(--muted);margin-bottom:8px;">A Production Of</div>
     <div style="font-size:26px;color:#e8a33d;margin-bottom:60px;">Cherry Buddha</div>
     <div style="font-size:15px;color:var(--muted);margin-bottom:8px;">Built With</div>
-    <div style="font-size:20px;color:var(--parchment);margin-bottom:80px;">TypeScript · Three.js · Vite</div>
+    <div style="font-size:20px;color:var(--parchment);margin-bottom:60px;">TypeScript · Three.js · Vite</div>
+    <div style="font-size:15px;color:var(--muted);margin-bottom:8px;">Art &amp; Audio</div>
+    <div style="font-size:18px;color:var(--parchment);margin-bottom:80px;">All 3D art generated procedurally in code.<br/>All sound synthesized at runtime.<br/>No third-party assets.</div>
     <div style="font-size:18px;color:#776;">Thank you for playing.</div>`;
 
   const back = button('Return to the Keep', () => screens.show('mainMenu'), 'btn small');

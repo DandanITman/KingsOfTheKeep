@@ -95,7 +95,7 @@ export class MatchInput {
 
   startPlacing(card: Card): void {
     const def = getBuilding(card.buildingId!);
-    this.ghost.show(def, this.sim.state.players[0].faction.colorPrimary);
+    this.ghost.show(def, this.sim.state.players[0].faction.colorPrimary, this.sim.state.players[0].faction.id);
     this.setMode({ kind: 'placing', card, rotation: 0, dragging: false, lastPlacedCell: null });
   }
 

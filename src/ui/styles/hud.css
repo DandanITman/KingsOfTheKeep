@@ -319,6 +319,23 @@
   z-index: 1;
 }
 
+/* Keyboard slot badge, mirrored opposite the age badge. */
+.card-hotkey {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  font-family: var(--font-display);
+  font-size: 9px;
+  line-height: 1;
+  color: var(--parchment);
+  background: rgba(4, 20, 34, 0.85);
+  border: 1px solid rgba(200, 149, 34, 0.45);
+  border-radius: 3px;
+  padding: 2px 4px;
+  pointer-events: none;
+  z-index: 2;
+}
+
 .card-art-window {
   position: relative;
   width: 100%;

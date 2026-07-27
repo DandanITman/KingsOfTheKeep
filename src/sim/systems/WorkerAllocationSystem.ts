@@ -25,6 +25,8 @@ export function workerAllocationSystem(state: MatchState, autoAssignHuman: boole
     for (const r of GATHER_RESOURCES) byResource.set(r, []);
     for (const u of state.units) {
       if (u.dead || u.player !== p.id || u.def.role !== 'worker') continue;
+      // Held or shift-queued workers are under manual control.
+      if (u.holdPosition || u.orders.length > 0) continue;
       if (u.task.kind === 'gather') {
         if (u.task.pinned) continue;
         pool.push(u);

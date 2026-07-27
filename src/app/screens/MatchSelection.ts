@@ -23,7 +23,7 @@ export class MatchSelection {
     this.overlay = overlay;
 
     input.onNormalClick = (world, e) => this.handleClick(world, e);
-    input.onNormalRightClick = (world) => this.handleRightClick(world);
+    input.onNormalRightClick = (world, e) => this.handleRightClick(world, e.shiftKey);
     input.onNormalDrag = (start, end, done) => {
       this.overlay.dragRect = { x1: start.x, y1: start.y, x2: end.x, y2: end.y };
       if (done) {
@@ -37,6 +37,51 @@ export class MatchSelection {
     this.selected = new Set(ids);
     this.overlay.selectedIds = this.selected;
     this.onChange?.();
+  }
+
+  // --- Public API for the hotkey layer -------------------------------------
+
+  /** Replace the selection with these entity ids (dead ones filtered out). */
+  select(ids: number[]): void {
+    const s = this.sim.state;
+    this.setSelection(ids.filter((id) => !s.entities.get(id)?.dead && s.entities.has(id)));
+  }
+
+  /** Currently selected living units belonging to the human player. */
+  selectedUnits(): Unit[] {
+    const s = this.sim.state;
+    return [...this.selected].map((id) => s.unit(id)).filter((u): u is Unit => !!u && u.player === 0);
+  }
+
+  /** Every living military unit the human player owns. */
+  armyIds(): number[] {
+    return this.sim.state.units
+      .filter((u) => !u.dead && u.player === 0 && u.def.role !== 'worker')
+      .map((u) => u.id);
+  }
+
+  /** Workers with nothing to do, in id order so cycling is stable. */
+  idleWorkerIds(): number[] {
+    return this.sim.state.units
+      .filter((u) => !u.dead && u.player === 0 && u.def.role === 'worker' && u.task.kind === 'idle')
+      .map((u) => u.id)
+      .sort((a, b) => a - b);
+  }
+
+  /** Mean position of the selection, for centring the camera on it. */
+  centroid(): Vec2 | null {
+    const s = this.sim.state;
+    let x = 0;
+    let y = 0;
+    let n = 0;
+    for (const id of this.selected) {
+      const e = s.entities.get(id);
+      if (!e || e.dead) continue;
+      x += e.pos.x;
+      y += e.pos.y;
+      n++;
+    }
+    return n === 0 ? null : { x: x / n, y: y / n };
   }
 
   private handleClick(world: Vec2, e: PointerEvent): void {
@@ -106,7 +151,8 @@ export class MatchSelection {
     this.setSelection((military.length > 0 ? military : units).map((u) => u.id));
   }
 
-  private handleRightClick(world: Vec2): void {
+  /** Shift held: append to the unit's order queue instead of replacing it. */
+  private handleRightClick(world: Vec2, queue: boolean): void {
     if (this.selected.size === 0) return;
     const s = this.sim.state;
     const ids = [...this.selected];
@@ -130,10 +176,10 @@ export class MatchSelection {
     }
     const workers = units.filter((u) => u.def.role === 'worker');
     if (node && workers.length > 0) {
-      this.sim.enqueue({ kind: 'directGather', player: 0, unitIds: workers.map((u) => u.id), nodeId: node.id });
+      this.sim.enqueue({ kind: 'directGather', player: 0, unitIds: workers.map((u) => u.id), nodeId: node.id, queue });
       const soldiers = units.filter((u) => u.def.role !== 'worker');
       if (soldiers.length > 0) {
-        this.sim.enqueue({ kind: 'directOrder', player: 0, unitIds: soldiers.map((u) => u.id), dest: world, attackMove: false });
+        this.sim.enqueue({ kind: 'directOrder', player: 0, unitIds: soldiers.map((u) => u.id), dest: world, attackMove: false, queue });
       }
       return;
     }
@@ -148,7 +194,7 @@ export class MatchSelection {
       }
     }
     if (site && workers.length > 0 && (site.underConstruction || site.hp < site.maxHp)) {
-      this.sim.enqueue({ kind: 'directBuild', player: 0, unitIds: workers.map((u) => u.id), buildingId: site.id });
+      this.sim.enqueue({ kind: 'directBuild', player: 0, unitIds: workers.map((u) => u.id), buildingId: site.id, queue });
       return;
     }
 
@@ -168,7 +214,7 @@ export class MatchSelection {
         }
       }
     }
-    this.sim.enqueue({ kind: 'directOrder', player: 0, unitIds: units.map((u) => u.id), dest: world, attackMove: enemyNear });
+    this.sim.enqueue({ kind: 'directOrder', player: 0, unitIds: units.map((u) => u.id), dest: world, attackMove: enemyNear, queue });
   }
 
   prune(): void {

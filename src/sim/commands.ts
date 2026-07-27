@@ -35,9 +35,13 @@ export type Command =
   | { kind: 'cancelTrain'; player: PlayerId; buildingId: EntityId; queueIndex: number }
   | { kind: 'startUpgrade'; player: PlayerId; buildingId: EntityId; upgradeId: string }
   | { kind: 'emergency'; player: PlayerId; action: EmergencyAction }
-  | { kind: 'directOrder'; player: PlayerId; unitIds: EntityId[]; dest: Vec2; attackMove: boolean }
-  | { kind: 'directGather'; player: PlayerId; unitIds: EntityId[]; nodeId: EntityId }
-  | { kind: 'directBuild'; player: PlayerId; unitIds: EntityId[]; buildingId: EntityId }
+  // `queue: true` (shift-click) appends to the unit's order queue instead of
+  // replacing whatever it is currently doing.
+  | { kind: 'directOrder'; player: PlayerId; unitIds: EntityId[]; dest: Vec2; attackMove: boolean; queue?: boolean }
+  | { kind: 'directGather'; player: PlayerId; unitIds: EntityId[]; nodeId: EntityId; queue?: boolean }
+  | { kind: 'directBuild'; player: PlayerId; unitIds: EntityId[]; buildingId: EntityId; queue?: boolean }
+  | { kind: 'stopUnits'; player: PlayerId; unitIds: EntityId[] }
+  | { kind: 'holdPosition'; player: PlayerId; unitIds: EntityId[] }
   | { kind: 'marketTrade'; player: PlayerId; sell: GatherResource; buy: GatherResource; amount: number }
   | { kind: 'setRally'; player: PlayerId; buildingId: EntityId; pos: Vec2 }
   | { kind: 'garrisonRanged'; player: PlayerId; buildingId: EntityId; count?: number }
