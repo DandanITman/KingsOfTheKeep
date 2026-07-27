@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import type { MatchState } from '@/sim/MatchState';
 import { Building } from '@/sim/entities/Entity';
-import { buildBuildingMesh, buildScaffoldMesh } from './meshes/buildingMeshes';
+import { buildScaffoldMesh } from './meshes/buildingMeshes';
+import { artMode, buildBuilding } from './art';
 import { banner } from './meshes/primitives';
 import { factionSlug, glbModelsEnabled, loadModelById, loadModelForMesh } from './assets/ModelLibrary';
 
@@ -168,7 +169,12 @@ export class BuildingView {
       }
       if (!t) {
         const color = this.state.players[b.player]?.faction.colorPrimary ?? 0x888888;
-        const mesh = buildBuildingMesh(b.def.mesh, color, { tier: variant, level: variant });
+        const faction = this.state.players[b.player]?.faction.id ?? '';
+        const mesh = buildBuilding(b.def.mesh, faction, color, {
+          tier: variant,
+          level: variant,
+          footprint: b.def.footprint as [number, number],
+        });
         mesh.position.set(b.pos.x, 0, b.pos.y);
         const scaffold = b.underConstruction ? buildScaffoldMesh(b.def.footprint) : null;
         if (scaffold) {
@@ -185,9 +191,9 @@ export class BuildingView {
         t = { mesh, scaffold, wasComplete: b.complete, variant, cloths, smokeAt, nextPuffMs: timeMs + Math.random() * 1500 };
         this.tracked.set(b.id, t);
 
-        // Manifest GLB upgrade: swap the procedural placeholder once loaded.
-        // Failed loads simply keep the placeholder.
-        if (glbModelsEnabled()) {
+        // Legacy art only: swap the procedural placeholder for an imported GLB
+        // once it loads. The new art system is the whole picture on its own.
+        if (artMode() === 'legacy' && glbModelsEnabled()) {
           const faction = this.state.players[b.player]?.faction.id ?? '';
           const fitWidth = Math.max(b.def.footprint[0], b.def.footprint[1]);
           const current = t;

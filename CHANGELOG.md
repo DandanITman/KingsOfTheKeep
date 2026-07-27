@@ -1,5 +1,85 @@
 # Changelog
 
+## Overhaul phase 3a: procedural art system — scale contract, faction grammar, buildings
+
+The first half of replacing the imported-model art with one coherent,
+code-authored system. New `src/render/art/` is now the single source of truth
+for how the 3D world looks, built alongside the old system behind an `?art=`
+switch so the game stays playable throughout the migration.
+
+**The scale contract (`art/scale.ts`).** The bug that made units float and
+render 2.5x oversized was fundamentally a scale bug that nothing checked: sizes
+were opaque multipliers (`s = 0.9` here, `fitSize: 1.45` there) with no declared
+meaning. Sizes are now named heights in world units, and `tests/art.test.ts`
+measures the real geometry against the declaration rather than trusting it.
+Nothing auto-fits to a measured bound — blind normalization is what caused the
+original bug.
+
+This exposed a live defect: procedural infantry stood 0.94 units tall while the
+GLB path built them at 1.8, and since imported models cap at 120 per match, a
+large battle rendered the same unit type at two different sizes side by side.
+Both paths now read the same table. `UnitView`'s `s = 0.9` is gone, replaced by
+a scale derived from each archetype's declared height, and the three separate
+hardcoded guesses at keep-wall height collapse into one `wallWalkHeight()`.
+
+**Faction identity from shared blueprints.** 24 of the ~60 buildings are shared
+by all four factions — a European barracks and an Asian barracks are literally
+the same `mesh` key — so faction identity cannot come from the mesh key and has
+to be supplied at build time. `buildBuildingMesh` now takes a faction, and
+blueprints call `c.mass()` / `c.roof()` / `c.tower()` rather than raw shapes, so
+the faction substitutes its own materials and silhouette grammar underneath.
+One barracks blueprint now produces four genuinely different buildings:
+
+- **European** — grey ashlar, steep red-tile gables, spired towers, gold cross
+- **Asian** — pale plaster, tiered upswept pagoda roofs, red lacquer trim
+- **African** — round battered mudbrick, tall thatch cones, gourd finials
+- **Middle Eastern** — sandstone cubes, flat parapets with turquoise coping,
+  onion domes, crescent finials
+
+**Building silhouettes.** Lumber Camp, Mining Camp and Stone Quarry were the
+same two boxes with a differently coloured cube, and unreadable in the card bar.
+They now differ by *dominant axis* rather than colour — a vertical minehead
+frame, a diagonal derrick boom, low horizontal log stacks — and a test asserts
+their proportions actually differ so a future copy-paste can't quietly undo it.
+The camps also grew from ~1.0 to 2.0–2.4 units tall so their props read at all.
+
+**Baked ambient occlusion.** Contact darkening toward the ground plus darkening
+of downward-facing faces, computed once at build time into the vertex colours
+the geometry already carries. Zero runtime cost, and it is most of what
+separates flat untextured primitives from something that looks hand-painted.
+
+**Contact shadows.** A soft blob under every unit, one instanced draw call for
+the whole army. The shadow map alone never sells contact at RTS zoom; this is
+what makes units look like they are standing on the terrain, and it removes the
+floating read permanently regardless of what the shadow map does.
+
+**Card previews now show the player's own faction.** Universal cards carry
+faction `neutral`, so a European player's Barracks card previewed in generic
+neutral styling — art they would never see in a match. Previews are keyed on the
+viewer's faction and cached per (card, faction).
+
+Also fixed: `prism` was built with `ExtrudeGeometry`, which produces
+*non-indexed* geometry, and `mergeGeometries` returns null when merging a mix of
+indexed and non-indexed inputs — one extruded gable roof silently emptied every
+other part of the building it belonged to. It is now an explicit indexed
+geometry with per-face vertices so facets stay flat-shaded.
+
+`tests/art.test.ts` (12 cases) replaces the coverage `tests/assets.test.ts` will
+lose when the manifest goes: every blueprint builds for every faction, every
+building matches its declared height within tolerance and sits at y=0, keeps
+grow per tier, camps are shape-distinguishable, unknown mesh keys resolve
+explicitly rather than silently substituting, and every unit mesh key in the
+data layer has a declared height.
+
+**Still to come in phase 3:** unit archetypes are not yet authored as
+faction-aware blueprints — they use the legacy geometry, now correctly scaled
+and shadowed, so all 16 worker types still share one look. Terrain, water and
+the fog rework against the new palette are also outstanding, as is deleting the
+GLB pipeline (phase 4).
+
+Typecheck clean; vitest 44 → 56 tests. All four factions verified in a browser,
+and `?art=legacy` still boots clean.
+
 ## Overhaul phase 2: control groups, hotkeys, queued orders, stop and hold
 
 The game previously had no RTS control layer at all — the entire keyboard

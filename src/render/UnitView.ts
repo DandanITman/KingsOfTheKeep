@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { lerp } from '@/core/mathUtils';
 import type { MatchState } from '@/sim/MatchState';
+import { ContactShadows } from './art/ContactShadows';
+import { unitHeight, unitRadius, wallWalkHeight } from './art/scale';
 import type { Unit } from '@/sim/entities/Entity';
 import { getArchetypeGeometry } from './meshes/unitMeshes';
 import { glbModelsEnabled, loadModelForUnit, modelIdForUnit } from './assets/ModelLibrary';
@@ -13,6 +15,8 @@ interface ArchetypePool {
   team: THREE.InstancedMesh | null;
   action: THREE.InstancedMesh | null;
   pivot: { x: number; y: number; z: number };
+  /** Scale that brings this archetype's baked geometry to its contract height. */
+  scale: number;
 }
 
 /** Semantic animation states derived from the sim task. */
@@ -56,6 +60,20 @@ function findRoleClip(clips: THREE.AnimationClip[], role: ClipRole, meshKey: str
     if (clip) return clip;
   }
   return null;
+}
+
+/** Height of a baked archetype's static layers, used to honour the contract. */
+function measureArchetypeHeight(geo: { body: THREE.BufferGeometry | null; team: THREE.BufferGeometry | null }): number {
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (const g of [geo.body, geo.team]) {
+    if (!g) continue;
+    g.computeBoundingBox();
+    if (!g.boundingBox) continue;
+    minY = Math.min(minY, g.boundingBox.min.y);
+    maxY = Math.max(maxY, g.boundingBox.max.y);
+  }
+  return Number.isFinite(minY) && Number.isFinite(maxY) ? maxY - minY : 0;
 }
 
 const bodyMaterial = new THREE.MeshLambertMaterial({ vertexColors: true });
@@ -110,43 +128,15 @@ function taskAnim(unit: Unit, timeMs: number, moving: boolean): Anim {
 }
 
 /**
- * Target height in world units for an imported unit model. These are real
- * heights, not opaque scale factors: a footman stands 1.8 units tall against a
- * 9-unit tier-1 keep, which is the ratio that makes a keep read as a keep.
+ * Target height in world units for an imported unit model, taken straight from
+ * the shared scale contract.
+ *
+ * These used to be a separate set of numbers roughly twice the procedural ones,
+ * so once a battle passed the 120-model import cap the same unit type rendered
+ * at two different sizes side by side. One source of truth removes that.
  */
 function importedUnitHeight(meshKey: string): number {
-  switch (meshKey) {
-    case 'lightCavalry':
-    case 'cavalry':
-    case 'knight':
-    case 'paladin':
-    case 'horseArcher':
-      return 2.4;
-    case 'camelRider':
-    case 'camelArcher':
-      return 2.6;
-    case 'elephant':
-      return 4.2;
-    case 'beast':
-      return 2.6;
-    case 'siegeTower':
-      return 4.5;
-    case 'ram':
-    case 'catapult':
-    case 'trebuchet':
-    case 'ballista':
-    case 'bombard':
-    case 'rocketCart':
-      return 2.6;
-    case 'cart':
-      return 1.6;
-    case 'champion':
-    case 'golem':
-      return 2.0;
-    default:
-      // Every humanoid on foot — workers, infantry, archers, monks, bannermen.
-      return 1.8;
-  }
+  return unitHeight(meshKey);
 }
 
 /**
@@ -157,6 +147,7 @@ function importedUnitHeight(meshKey: string): number {
  */
 export class UnitView {
   readonly root = new THREE.Group();
+  private shadows = new ContactShadows();
   private importedRoot = new THREE.Group();
   private pools = new Map<string, ArchetypePool>();
   private importedUnits = new Map<number, ImportedUnit>();
@@ -172,6 +163,7 @@ export class UnitView {
   private lastTimeMs = 0;
 
   constructor(state: MatchState) {
+    this.root.add(this.shadows.mesh);
     this.state = state;
     this.teamColors = state.players.map((p) => new THREE.Color(p.faction.colorPrimary));
     this.root.add(this.importedRoot);
@@ -191,7 +183,11 @@ export class UnitView {
         m.frustumCulled = false;
         this.root.add(m);
       }
-      pool = { body, team, action, pivot: geo.pivot };
+      // Derive the render scale from the contract rather than a magic 0.9, so
+      // every archetype ends up the height it declares.
+      const measured = measureArchetypeHeight(geo);
+      const scale = measured > 1e-4 ? unitHeight(meshKey) / measured : 1;
+      pool = { body, team, action, pivot: geo.pivot, scale };
       this.pools.set(meshKey, pool);
     }
     return pool;
@@ -298,6 +294,8 @@ export class UnitView {
       if (pool.action) pool.action.count = 0;
     }
 
+    this.shadows.begin();
+
     for (const unit of this.state.units) {
       if (unit.dead) continue;
       seen.add(unit.id);
@@ -317,7 +315,11 @@ export class UnitView {
       // Garrisoned archers stand on the keep's walls.
       if (unit.garrisonedIn !== null) {
         const tier = this.state.players[unit.player]?.tier ?? 1;
-        y = 2.7 + (tier - 1) * 0.4;
+        y = wallWalkHeight(tier);
+      } else {
+        // Contact shadow on the ground. Skipped for garrisoned units, who are
+        // standing on a roof rather than on the terrain.
+        this.shadows.add(x, z, unitRadius(meshKey));
       }
       if (anim.lunge > 0) {
         x += Math.cos(unit.facing) * anim.lunge;
@@ -368,7 +370,7 @@ export class UnitView {
 
       this.dummy.position.set(x, y, z);
       this.dummy.rotation.set(0, -unit.facing, moving ? Math.sin(timeMs * 0.012 + unit.id) * 0.05 : 0);
-      const s = 0.9;
+      const s = pool.scale;
       this.dummy.scale.set(s, s, s);
       this.dummy.updateMatrix();
 
@@ -390,6 +392,8 @@ export class UnitView {
         pool.action.count = i + 1;
       }
     }
+
+    this.shadows.end();
 
     for (const [id, imported] of this.importedUnits) {
       if (!seen.has(id)) {

@@ -52,7 +52,7 @@ export class CardBar {
       const cdOverlay = el('div', { className: 'card-cd' });
       const reason = el('div', { className: 'card-reason' });
       const art = el('div', { className: 'card-art-window' });
-      const model = buildCardModel(card);
+      const model = buildCardModel(card, state.players[0].faction.id);
       if (model) {
         const canvas = document.createElement('canvas');
         canvas.width = 220;

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { BuildingDef } from '@/data/types';
 import type { PlacementResult } from '@/sim/systems/CardSystem';
-import { buildBuildingMesh } from './meshes/buildingMeshes';
+import { buildBuilding } from './art';
 
 const TINT: Record<PlacementResult, number> = {
   ok: 0x44ff66,
@@ -36,10 +36,10 @@ export class GhostPlacementView {
     this.root.visible = false;
   }
 
-  show(def: BuildingDef, teamColor: number): void {
+  show(def: BuildingDef, teamColor: number, faction = ''): void {
     if (this.currentMeshKey !== def.mesh) {
       if (this.ghost) this.ghost.removeFromParent();
-      this.ghost = buildBuildingMesh(def.mesh, teamColor);
+      this.ghost = buildBuilding(def.mesh, faction, teamColor, { footprint: def.footprint as [number, number] });
       this.ghost.traverse((o) => {
         if (o instanceof THREE.Mesh) {
           const m = (o.material as THREE.MeshLambertMaterial).clone();

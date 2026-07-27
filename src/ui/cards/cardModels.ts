@@ -9,7 +9,7 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { getArchetypeGeometry } from '@/render/meshes/unitMeshes';
-import { buildBuildingMesh } from '@/render/meshes/buildingMeshes';
+import { buildBuilding } from '@/render/art';
 import { getUnit } from '@/data/units';
 import { getBuilding } from '@/data/buildings';
 import { FACTIONS } from '@/data/factions';
@@ -156,8 +156,13 @@ const cardModelCache = new Map<string, THREE.Object3D | null>();
  * The 3D model shown on a card: the unit archetype or the building mesh.
  * Ability/power cards have no model (callers fall back to the icon glyph).
  */
-export function buildCardModel(card: Card): THREE.Object3D | null {
-  let model = cardModelCache.get(card.id);
+export function buildCardModel(card: Card, viewerFaction?: string): THREE.Object3D | null {
+  // Universal cards carry faction 'neutral', but in a match they are built in
+  // the player's own style — so the preview has to be keyed on who is looking
+  // at it, or the card shows art the player will never see.
+  const faction = card.faction === 'neutral' && viewerFaction ? viewerFaction : card.faction;
+  const cacheKey = `${card.id}:${faction}`;
+  let model = cardModelCache.get(cacheKey);
   if (model !== undefined) return model;
   model = null;
   if (card.unitId) {
@@ -175,9 +180,9 @@ export function buildCardModel(card: Card): THREE.Object3D | null {
     model = fitModel(g, 1.9);
   } else if (card.buildingId) {
     const def = getBuilding(card.buildingId);
-    model = fitModel(buildBuildingMesh(def.mesh, factionColor(card.faction)), 2.3);
+    model = fitModel(buildBuilding(def.mesh, faction, factionColor(card.faction), { footprint: def.footprint as [number, number] }), 2.3);
   }
-  cardModelCache.set(card.id, model);
+  cardModelCache.set(cacheKey, model);
   return model;
 }
 
